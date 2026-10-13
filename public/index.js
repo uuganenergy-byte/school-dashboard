@@ -169,11 +169,31 @@ function renderScheduleTable(room) {
 
   for (let i = 1; i <= 7; i++) {
     const pKey = `${i}-р цаг`;
-    const subj1 = s1[pKey]?.[activeDay] || '-';
-    const subj2 = s2[pKey]?.[activeDay] || '-';
-    html += `<tr><td><b>${i}</b></td><td>${subj1}</td><td>${subj2}</td></tr>`;
+    
+    let subj1 = '-';
+    if (s1[pKey]) {
+      // Тухайн өдрийн нэрийг зай болон регистр үл хамааран найдвартай олох
+      const targetDay = (activeDay || '').trim();
+      const foundKey = Object.keys(s1[pKey]).find(k => k.trim() === targetDay);
+      if (foundKey && s1[pKey][foundKey] && s1[pKey][foundKey].trim() !== '') {
+        subj1 = s1[pKey][foundKey];
+      }
+    }
+
+    let subj2 = '-';
+    if (s2[pKey]) {
+      const targetDay = (activeDay || '').trim();
+      const foundKey = Object.keys(s2[pKey]).find(k => k.trim() === targetDay);
+      if (foundKey && s2[pKey][foundKey] && s2[pKey][foundKey].trim() !== '') {
+        subj2 = s2[pKey][foundKey];
+      }
+    }
+
+    html += `<tr><td><b>${i}</b></td><td>${escapeHtml(subj1)}</td><td>${escapeHtml(subj2)}</td></tr>`;
   }
+  
   html += `</tbody></table>`;
+  
   const schedBox = document.getElementById('schedTableBox');
   if (schedBox) schedBox.innerHTML = html;
 }
@@ -822,6 +842,7 @@ function svBuildIndex() {
     return classes.get(label);
   };
 
+  // 1. Багш нарын хуваарь дээрх хичээлүүдийг нэгтгэх
   teachersData.forEach(t => {
     SV_DAYS.forEach(day => {
       for (let p = 1; p <= 14; p++) {
@@ -839,6 +860,63 @@ function svBuildIndex() {
     });
   });
 
+  // 2. admin.html (rooms.json) дээрх өрөөний хуваарь болон ээлжийн мэдээллүүдийг нэгтгэж татах
+  if (typeof roomsData !== 'undefined' && Array.isArray(roomsData)) {
+    roomsData.forEach(r => {
+      // 1-р ээлжийн хуваарь (scheduleClass1)
+      if (r.scheduleClass1) {
+        SV_DAYS.forEach(day => {
+          for (let p = 1; p <= 7; p++) {
+            const pKey = `${p}-р цаг`;
+            const lessonText = r.scheduleClass1[pKey]?.[day];
+            const groupLabel = r.class1Group;
+            if (lessonText && lessonText !== '-' && groupLabel) {
+              svClassTokens(groupLabel).forEach(tok => {
+                const entry = ensure(tok);
+                if (!entry.grid[day]) entry.grid[day] = {};
+                if (!entry.grid[day][p]) entry.grid[day][p] = [];
+                if (!entry.grid[day][p].some(x => x.text === lessonText)) {
+                  entry.grid[day][p].push({ 
+                    t: { name: `Кабинет: ${r.roomNumber}`, subject: lessonText, id: 'room_' + r.roomNumber }, 
+                    text: lessonText 
+                  });
+                  entry.lessons++;
+                }
+              });
+            }
+          }
+        });
+      }
+
+      // 2-р ээлжийн хуваарь (scheduleClass2) - 8-14 дүгээр цагууд
+      if (r.scheduleClass2) {
+        SV_DAYS.forEach(day => {
+          for (let i = 1; i <= 7; i++) {
+            const p = i + 7;
+            const pKey = `${i}-р цаг`;
+            const lessonText = r.scheduleClass2[pKey]?.[day];
+            const groupLabel = r.class2Group;
+            if (lessonText && lessonText !== '-' && groupLabel) {
+              svClassTokens(groupLabel).forEach(tok => {
+                const entry = ensure(tok);
+                if (!entry.grid[day]) entry.grid[day] = {};
+                if (!entry.grid[day][p]) entry.grid[day][p] = [];
+                if (!entry.grid[day][p].some(x => x.text === lessonText)) {
+                  entry.grid[day][p].push({ 
+                    t: { name: `Кабинет: ${r.roomNumber}`, subject: lessonText, id: 'room_' + r.roomNumber }, 
+                    text: lessonText 
+                  });
+                  entry.lessons++;
+                }
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Өрөөний бүртгэл дээрх ангийн группүүдийг баталгаажуулах
   roomsData.forEach(r => [r.class1Group, r.class2Group].forEach(g => svClassTokens(g).forEach(ensure)));
 
   const list = Array.from(classes.values()).sort((a, b) => {
@@ -1301,23 +1379,28 @@ const customOrder = [
     }
   });
 
-  let rowsHtml = '';
+let rowsHtml = '';
   teachers.forEach((t) => {
     let cellsHtml = '';
     days.forEach((day, dIndex) => {
       const isLastDay = dIndex === days.length - 1;
       const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
 
+      // 1-р ээлж (1-7 цаг): Үдийн өмнөх хэсэг (Арай цайвар эсвэл өөр фонтой байж болно)
       for (let p = 1; p <= 7; p++) {
         const val = svLesson(t, day, p);
         const cellBorderRight = (p === 7) ? '2px solid #64748b' : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        // 1-р ээлжийн дэвсгэр өнгө
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; background: #0f172a; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
       }
+      
+      // 2-р ээлж (8-14 цаг): Үдийн хойдох хэсэг (Өөр фонны өнгөөр ялгах)
       for (let p = 8; p <= 14; p++) {
         const val = svLesson(t, day, p);
         const isEndOfDay = (p === 14);
         const cellBorderRight = isEndOfDay ? dayBorderRight : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        // 2-р ээлжийн дэвсгэр өнгө (Жишээ нь: бага зэрэг ялгаатай бараан эсвэл өөр өнгө)
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; background: #182235; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
       }
     });
 
