@@ -51,13 +51,18 @@ function checkAuth() {
 
 // ================= ЦЭС (ТАБ) СОЛИХ =================
 function showTab(name) {
-  ['rooms', 'teachers', 'import', 'map'].forEach(n => {
+  ['rooms', 'teachers', 'import', 'schedule_input', 'map'].forEach(n => {
     const box = document.getElementById('tab_' + n);
     const btn = document.getElementById('tabBtn_' + n);
     if (box) box.style.display = (n === name) ? 'block' : 'none';
     if (btn) btn.classList.toggle('active', n === name);
   });
+
+  if (name === 'schedule_input') {
+    renderAdminScheduleInput();
+  }
 }
+window.showTab = showTab;
 
 // ================= public/uploads доторх файлууд =================
 async function loadUploadsList() {
@@ -81,7 +86,7 @@ function populateUploadDropdown(selectId) {
   const select = document.getElementById(selectId);
   if (!select) return;
 
-  const prev = select.value; // одоо сонгосон утгыг санана
+  const prev = select.value;
   select.innerHTML = '<option value="">-- Зураг сонгоогүй --</option>';
 
   availableUploads.forEach(file => {
@@ -244,7 +249,6 @@ async function loadAdminData() {
 
     changeCoordFloor();
 
-    // Нэвтрэх үед аль аль сонголтыг ч "-- Сонгоно уу --" хоосон төлөвт байлгана
     document.getElementById('adminRoomSelect').value = "";
     prepareNewRoomForm();
 
@@ -261,7 +265,6 @@ function populateRoomDropdown() {
   if (!select) return;
 
   select.innerHTML = '<option value="">-- Засах ангиа сонгоно уу --</option>';
-
   if (roomsData.length === 0) return;
 
   const sortedRooms = [...roomsData].sort((a, b) =>
@@ -314,7 +317,6 @@ async function saveRoomData() {
     return;
   }
 
-  // 5 хүртэлх зураг авах логик
   let imageUrls = [];
   const imageInput = document.getElementById('roomImagesInput');
   const existingRoom = roomsData.find(r => String(r.roomNumber) === String(roomNum));
@@ -377,10 +379,8 @@ async function saveRoomData() {
     });
 
     const data = await res.json();
-
     if (res.ok && data.success) {
       alert("✅ Мэдээлэл амжилттай хадгалагдлаа!");
-
       const resRooms = await fetch('/api/rooms');
       if (resRooms.ok) {
         roomsData = await resRooms.json();
@@ -392,7 +392,7 @@ async function saveRoomData() {
       const roomSelect = document.getElementById('adminRoomSelect');
       if (roomSelect) roomSelect.value = "";
     } else {
-      alert("⚠️ Хадгалахад алдаа гарлаа. Дахин нэвтэрч үзнэ үү.");
+      alert("⚠️ Хадгалахад алдаа гарлаа.");
     }
   } catch (err) {
     console.error(err);
@@ -410,7 +410,6 @@ async function deleteCurrentRoom() {
 }
 
 // ================= БАГШ (ангиас тусдаа) =================
-// Багшийн хариуцсан кабинетүүд (хуучин нэг "roomNumber"-тай өгөгдөлтэй нийцнэ)
 function getTeacherRooms(t) {
   if (!t) return [];
   const arr = Array.isArray(t.roomNumbers) ? t.roomNumbers : (t.roomNumber ? [t.roomNumber] : []);
@@ -447,8 +446,6 @@ function makeRoomCheckbox(value, labelText, isOrphan) {
   return wrap;
 }
 
-// Өгөгдсөн кабинетүүдийг тэмдэглэнэ. Жагсаалтад байхгүй кабинет байвал
-// чимээгүй алдагдахгүйн тулд анхааруулгатай нэмж харуулна.
 function setSelectedTeacherRooms(list) {
   const box = document.getElementById('teacherRoomList');
   if (!box) return;
@@ -490,8 +487,6 @@ function populateTeacherDropdown() {
   const prev = select.value;
   select.innerHTML = '<option value="">-- Засах багшаа сонгоно уу --</option>';
 
-  // Цэгийн ХОЙД талын нэрээр эрэмбэлнэ ("Б.Ариунцэцэг" → "Ариунцэцэг")
-  // Цэггүй нэр бол нэрийг бүтнээр нь авна. Адил байвал бүтэн нэрээр жагсаана.
   const givenName = (full) => {
     const s = String(full || '').trim();
     const i = s.lastIndexOf('.');
@@ -550,8 +545,6 @@ async function saveTeacherData() {
   }
 
   let image = document.getElementById('teacherImage').value;
-
-  // Шинэ зураг сонгосон бол эхлээд хуулна
   const fileInput = document.getElementById('teacherImageFile');
   if (fileInput && fileInput.files && fileInput.files.length > 0) {
     const formData = new FormData();
@@ -566,7 +559,7 @@ async function saveTeacherData() {
       if (upData.success && upData.filePaths && upData.filePaths.length > 0) {
         image = upData.filePaths[0];
       } else {
-        alert('⚠️ Зураг хуулж чадсангүй: ' + (upData.error || 'алдаа гарлаа'));
+        alert('⚠️ Зураг хуулж чадсангүй.');
         return;
       }
     } catch (err) {
@@ -598,18 +591,17 @@ async function saveTeacherData() {
 
     if (res.ok && data.success) {
       alert("✅ Багшийн мэдээлэл амжилттай хадгалагдлаа!");
-
       const tRes = await fetch('/api/teachers');
       if (tRes.ok) teachersData = await tRes.json();
 
-      await loadUploadsList(); // шинэ зураг хуулсан бол жагсаалтад нэмэгдэнэ
+      await loadUploadsList();
       populateTeacherDropdown();
       populateTeacherRoomDropdown();
       prepareNewTeacherForm();
       const teacherSelect = document.getElementById('teacherSelect');
       if (teacherSelect) teacherSelect.value = "";
     } else {
-      alert("⚠️ Хадгалахад алдаа гарлаа: " + (data.message || 'Дахин нэвтэрч үзнэ үү.'));
+      alert("⚠️ Хадгалахад алдаа гарлаа.");
     }
   } catch (err) {
     console.error(err);
@@ -645,13 +637,10 @@ async function deleteCurrentTeacher() {
   }
 }
 
-
-// ==========================================
-// 📥 EXCEL-ЭЭС БАГШИЙН ХУВААРЬ ТАТАХ
-// ==========================================
-let importParsed = null;   // сервер уншсан үр дүн
-let importSheetIdx = 0;    // сонгосон хуудас
-let masterScheduleData = []; // Нэгдсэн хуваарийн хүснэгт (Excel-ээс хадгалсан түүхий өгөгдөл)
+// ================= EXCEL ИМПОРТ =================
+let importParsed = null;
+let importSheetIdx = 0;
+let masterScheduleData = [];
 
 function escapeHtmlAdmin(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -670,7 +659,6 @@ function setImportStatus(msg, isError) {
   el.innerText = msg || '';
 }
 
-// Файлын нэрээс ээлжийг таамаглана (жишээ: "дунд анги" → 2-р ээлж)
 function onImportFileChange() {
   const input = document.getElementById('importFile');
   const shift = document.getElementById('importShift');
@@ -715,13 +703,13 @@ async function parseImportFile() {
 
     if (!res.ok || !data.success) {
       document.getElementById('importPreview').style.display = 'none';
-      setImportStatus('⚠️ ' + (data.message || data.error || 'Файлыг уншиж чадсангүй. Дахин нэвтэрч үзнэ үү.'), true);
+      setImportStatus('⚠️ ' + (data.message || data.error || 'Файлыг уншиж чадсангүй.'), true);
       return;
     }
 
     importParsed = data;
     importSheetIdx = data.recommended || 0;
-    setImportStatus('✅ Файл амжилттай уншигдлаа. Доорх жагсаалтыг шалгана уу.');
+    setImportStatus('✅ Файл амжилттай уншигдлаа.');
     renderImportPreview();
   } catch (err) {
     console.error(err);
@@ -740,11 +728,10 @@ function renderImportPreview() {
   const sheet = sheets[importSheetIdx];
   document.getElementById('importPreview').style.display = 'block';
 
-  // Хэд хэдэн хуудас олдсон бол сонгуулна
   const sheetBox = document.getElementById('importSheetBox');
   if (sheets.length > 1) {
     sheetBox.innerHTML = `
-      <label style="color:#38bdf8;">📄 Файлаас ${sheets.length} хуваарийн хуудас олдлоо. Аль хуудсыг татах вэ?</label>
+      <label style="color:#38bdf8;">📄 Файлаас ${sheets.length} хуудас олдлоо:</label>
       <select onchange="onImportSheetChange(this.value)">
         ${sheets.map((s, i) => `<option value="${i}" ${i === importSheetIdx ? 'selected' : ''}>
           "${escapeHtmlAdmin(s.name)}" - ${s.teachersWithLessons} багш, ${s.lessons} хичээл
@@ -754,7 +741,6 @@ function renderImportPreview() {
     sheetBox.innerHTML = '';
   }
 
-  // Одоо байгаа багш нартай харьцуулна
   const existing = new Set(teachersData.map(t => normNameAdmin(t.name)));
   let newCount = 0, updCount = 0, skipCount = 0;
   const skipEmpty = document.getElementById('importSkipEmpty').checked;
@@ -779,12 +765,8 @@ function renderImportPreview() {
   document.getElementById('importTbody').innerHTML = rows.join('');
 
   document.getElementById('importSummary').innerHTML = `
-    📄 Хуудас: <b>"${escapeHtmlAdmin(sheet.name)}"</b> ·
-    Нийт <b>${sheet.teacherCount}</b> багш, <b>${sheet.lessons}</b> хичээл олдлоо
-    (1-р ээлж: <b>${sheet.lessonsShift1}</b>, 2-р ээлж: <b>${sheet.lessonsShift2}</b>)<br>
-    🆕 Шинээр нэмэгдэх: <b class="st-new">${newCount}</b> ·
-    🔄 Байгаа багшид нэмэгдэх: <b class="st-upd">${updCount}</b> ·
-    ⏭ Алгасах: <b class="st-skip">${skipCount}</b>`;
+    📄 Хуудас: <b>"${escapeHtmlAdmin(sheet.name)}"</b> · Нийт <b>${sheet.teacherCount}</b> багш<br>
+    🆕 Шинэ: <b class="st-new">${newCount}</b> · 🔄 Шинэчлэгдэх: <b class="st-upd">${updCount}</b> · ⏭ Алгасах: <b class="st-skip">${skipCount}</b>`;
 }
 
 async function applyImport() {
@@ -795,10 +777,7 @@ async function applyImport() {
   if (document.getElementById('importClear1').checked) clearShifts.push(1);
   if (document.getElementById('importClear2').checked) clearShifts.push(2);
 
-  let question = `"${sheet.name}" хуудасны ${sheet.teacherCount} багшийн хуваарийг татаж хадгалах уу?`;
-  if (clearShifts.length > 0) {
-    question += `\n\n⚠️ Анхаар: ${clearShifts.join(', ')}-р ээлжийн хуучин хуваарь ЭНЭ ФАЙЛД БАЙГАА багш нараас арилна.`;
-  }
+  let question = `"${sheet.name}" хуудасны ${sheet.teacherCount} багшийн хуваарийг хадгалах уу?`;
   if (!confirm(question)) return;
 
   const payload = {
@@ -817,15 +796,14 @@ async function applyImport() {
     const data = await res.json();
 
     if (res.ok && data.success) {
-      alert(`✅ Амжилттай татагдлаа!\n\n🆕 Шинэ багш: ${data.created}\n🔄 Шинэчлэгдсэн: ${data.updated}\n➖ Өөрчлөлтгүй: ${data.unchanged}\n⏭ Алгассан: ${data.skipped}\n\nНийт багш: ${data.total}`);
-
+      alert(`✅ Амжилттай татагдлаа! Нийт багш: ${data.total}`);
       const tRes = await fetch('/api/teachers');
       if (tRes.ok) teachersData = await tRes.json();
       populateTeacherDropdown();
-      renderImportPreview(); // төлөвүүдийг шинэчилнэ
-      setImportStatus(`✅ Татаж дууслаа. Нийт ${data.total} багш бүртгэлтэй байна.`);
+      renderImportPreview();
+      setImportStatus(`✅ Татаж дууслаа.`);
     } else {
-      setImportStatus('⚠️ ' + (data.message || 'Хадгалахад алдаа гарлаа. Дахин нэвтэрч үзнэ үү.'), true);
+      setImportStatus('⚠️ Хадгалахад алдаа гарлаа.', true);
     }
   } catch (err) {
     console.error(err);
@@ -833,7 +811,6 @@ async function applyImport() {
   }
 }
 
-// ================= СУРГУУЛИЙН ТОХИРГОО =================
 async function saveSchoolSettings() {
   const payload = {
     floor1Image: document.getElementById('floor1Select').value,
@@ -846,7 +823,7 @@ async function saveSchoolSettings() {
     body: JSON.stringify(payload)
   });
   if (r.ok) alert("✅ Сургуулийн тохиргоо амжилттай хадгалагдлаа!");
-  else alert("⚠️ Хадгалахад алдаа гарлаа. Дахин нэвтэрч үзнэ үү.");
+  else alert("⚠️ Хадгалахад алдаа гарлаа.");
 }
 
 window.onload = () => {
@@ -856,19 +833,15 @@ window.onload = () => {
   if (skipBox) skipBox.addEventListener('change', renderImportPreview);
 };
 
-// ==========================================
-// 2D КООРДИНАТ ТОХИРУУЛАХ ФУНКЦҮҮД
-// ==========================================
+// ================= 2D КООРДИНАТ ТОХИРУУЛАХ =================
 let currentClickCoords = null;
 
-// Зураг дээр товших үед байршлын хувийг бодох
 function onMapClick(event) {
   const img = document.getElementById('coordMapImg');
   const rect = img.getBoundingClientRect();
 
   const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
   const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
-
   const floor = document.getElementById('coordFloorSelect').value;
 
   currentClickCoords = {
@@ -903,7 +876,6 @@ function changeCoordFloor() {
 
 async function saveRoomCoords() {
   const roomNum = document.getElementById('coordRoomSelect').value;
-
   if (!roomNum) return alert('Ангиа сонгоно уу!');
   if (!currentClickCoords) return alert('Зураг дээр даран байршлын цэгээ зааж өгнө үү!');
 
@@ -946,7 +918,6 @@ function updateCoordRoomDropdown(rooms) {
   });
 }
 
-// Админ хэсэгт хадгалагдсан бүх ангиудын цэгийг 2D зураг дээр харуулах функц
 function renderSavedAdminMarkers() {
   const floor = document.getElementById('coordFloorSelect').value;
   const wrapper = document.getElementById('coordMapWrapper');
@@ -977,27 +948,13 @@ function renderSavedAdminMarkers() {
   });
 }
 
-
-// ==========================================
-// 📦 НЭГДСЭН ХУВААРИЙН ХҮСНЭГТ
-// ==========================================
-
-// Уншсан Excel файлын мэдээллийг нэгдсэн хуваарьт хадгалах (бүхэлд нь орлуулна)
+// ================= НЭГДСЭН ХУВААРЬ =================
 async function saveToMasterSchedule() {
   if (!importParsed) {
     alert('Эхлээд Excel файлаа уншиж харна уу.');
     return;
   }
   const sheet = importParsed.sheets[importSheetIdx];
-
-  if (masterScheduleData.length > 0) {
-    const ok = confirm(
-      `Одоо нэгдсэн хуваарьт ${masterScheduleData.length} багшийн мэдээлэл байна.\n` +
-      `"${sheet.name}" хуудасны ${sheet.teacherCount} багшаар БҮРЭН ОРЛУУЛАХ уу?\n\n` +
-      `⚠️ Хэрэв та багшийн нэрийг өмнө нь энд засварласан бол, тэр засвар устана.`
-    );
-    if (!ok) return;
-  }
 
   try {
     const res = await fetch('/api/master-schedule', {
@@ -1020,14 +977,13 @@ async function saveToMasterSchedule() {
   }
 }
 
-// Нэгдсэн хуваарийн жагсаалтыг зурна (нэр засах боломжтой)
 function renderMasterScheduleViewer() {
   const tbody = document.getElementById('masterSchedTbody');
   const countEl = document.getElementById('masterSchedCount');
   if (!tbody) return;
 
   if (masterScheduleData.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:15px;">Одоогоор хоосон байна. Дээрх Excel-ээс уншаад "📦 Нэгдсэн хуваарьт хадгалах" дарна уу.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:15px;">Одоогоор хоосон байна.</td></tr>';
     if (countEl) countEl.innerText = '';
     return;
   }
@@ -1059,7 +1015,6 @@ function filterMasterScheduleViewer() {
   });
 }
 
-// Жагсаалт дээр засварласан нэрсийг цуглуулж, серверт хадгална
 async function saveMasterScheduleNameEdits() {
   const updated = masterScheduleData.map((t, i) => {
     const input = document.querySelector(`input[data-ms-name="${i}"]`);
@@ -1078,22 +1033,18 @@ async function saveMasterScheduleNameEdits() {
       const msRes = await fetch('/api/master-schedule');
       if (msRes.ok) masterScheduleData = await msRes.json();
       renderMasterScheduleViewer();
-    } else {
-      alert('⚠️ Хадгалахад алдаа гарлаа.');
     }
   } catch (err) {
     console.error(err);
-    alert('⚠️ Сервертэй холбогдож чадсангүй.');
   }
 }
 
 async function deleteMasterScheduleRow(origIndex) {
   const t = masterScheduleData[origIndex];
   if (!t) return;
-  if (!confirm(`"${t.name}" мөрийг нэгдсэн хуваариас устгах уу?`)) return;
+  if (!confirm(`"${t.name}" мөрийг устгах уу?`)) return;
 
   const updated = masterScheduleData.filter((_, i) => i !== origIndex);
-
   try {
     const res = await fetch('/api/master-schedule', {
       method: 'POST',
@@ -1110,11 +1061,9 @@ async function deleteMasterScheduleRow(origIndex) {
   }
 }
 
-// "Багшийн мэдээлэл" цэс дээрх "📥 Хуваариас татах" товч дарахад ажиллана
 function pullScheduleForTeacher() {
   const nameInput = document.getElementById('teacherName');
   const name = (nameInput?.value || '').trim();
-
   if (!name) {
     alert('Эхлээд багшийн нэрийг бичнэ үү.');
     return;
@@ -1122,17 +1071,11 @@ function pullScheduleForTeacher() {
 
   const key = normNameAdmin(name);
   const match = masterScheduleData.find(t => normNameAdmin(t.name) === key);
-
   if (!match) {
-    alert(
-      `⚠️ "${name}" нэртэй багш нэгдсэн хуваариас олдсонгүй.\n\n` +
-      `"📅 Хуваарь татах (Excel)" цэс рүү орж, доорх "Нэгдсэн хуваарийн хүснэгт"-ээс энэ багшийн нэрийг олоод,\n` +
-      `яг одоо бичсэн нэртэй адилхан болгож засаад дахин оролдоно уу.`
-    );
+    alert(`⚠️ "${name}" нэртэй багш нэгдсэн хуваариас олдсонгүй.`);
     return;
   }
 
-  // cells: [[dayIdx, period, lessonText], ...] -> tsch хүснэгтийн форматад хөрвүүлнэ
   const schedObj = {};
   for (let p = 1; p <= 14; p++) {
     schedObj[`${p}-р цаг`] = { time: DEFAULT_TIMES[p - 1] || '' };
@@ -1145,11 +1088,235 @@ function pullScheduleForTeacher() {
   });
 
   fillScheduleData(schedObj, "tsch", 14);
-
   const subjectInput = document.getElementById('teacherSubject');
   if (subjectInput && !subjectInput.value.trim() && match.subject) {
     subjectInput.value = match.subject;
   }
-
-  alert(`✅ "${match.name}" багшийн хуваарь татагдлаа. Шалгаад "💾 Багшийг хадгалах" товчийг дарна уу.`);
+  alert(`✅ "${match.name}" багшийн хуваарь татагдлаа.`);
 }
+
+// ================= EXCEL PASTE ЛОГИК =================
+function handleAdminGridPaste(e, startTeacherIdx, startColIndex) {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  const pastedData = clipboardData.getData('Text');
+  
+  // Хэрэв хуулсан өгөгдөл хоосон эсвэл хүснэгтийн бүтэцгүй байвал энгийн paste хийх горимд үлдээнэ
+  if (!pastedData) return;
+
+  e.preventDefault();
+
+  // Excel-ээс хуулахад мөр нь \r\n эсвэл \n-ээр, багана нь \t (tab)-аар тусгаарлагддаг
+  const rows = pastedData.split(/\r\n|\r|\n/).filter(row => row.length > 0);
+
+  rows.forEach((rowStr, rIdx) => {
+    const tIdx = startTeacherIdx + rIdx;
+    const inputsInRow = document.querySelectorAll(`input.sched-input-cell[data-teacher-index="${tIdx}"]`);
+    if (!inputsInRow.length) return;
+
+    const cols = rowStr.split('\t');
+    cols.forEach((cellVal, cIdx) => {
+      const targetColIdx = startColIndex + cIdx;
+      if (targetColIdx >= 70) return; // Нийт 5 өдөр * 14 цаг = 70 багана
+
+      const targetInput = inputsInRow[targetColIdx];
+      if (targetInput) {
+        targetInput.value = cellVal.trim();
+      }
+    });
+  });
+}
+window.handleAdminGridPaste = handleAdminGridPaste;
+window.handleAdminGridPaste = handleAdminGridPaste;
+
+// ================= ХУВААРЬ ОРУУЛАХ ТАБЫН ХҮСНЭГТ =================
+function renderAdminScheduleInput() {
+  const container = document.getElementById('adminScheduleTableContainer');
+  if (!container) return;
+
+  // Зөвхөн энэ хүснэгтэд үйлчлэх дараалал
+const customOrder = [
+    "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал", 
+    "Г.Аззаяа", "Ц.Энхчимэг", "А.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
+    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Одмаа", 
+    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "Э.Цогзолмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
+    "Г.Одмаа", "Л.Бямбадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
+    "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай", 
+    "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа", 
+    "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан", 
+    "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан", 
+    "Д.Алтанцоож", "П.Эрдэнэцэцэг", "Л.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
+    "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан", 
+    "Э.Лундаажанцан", "Ц.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан", "М.Оюунсүх"
+  ];
+
+  let teachers = [];
+  customOrder.forEach(name => {
+    const found = teachersData.find(t => (t.name || '').trim() === name.trim());
+    if (found) teachers.push(found);
+  });
+  
+  teachersData.forEach(t => {
+    if (!teachers.some(existing => (existing.name || '').trim() === (t.name || '').trim())) {
+      teachers.push(t);
+    }
+  });
+
+  if (!teachers.length) {
+    container.innerHTML = `<div class="admin-empty">Багшийн мэдээлэл олдсонгүй</div>`;
+    return;
+  }
+
+  const days = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан'];
+  let dayHeaderHtml = '';
+  let subHeaderHtml = '';
+
+  days.forEach((day, dIndex) => {
+    const isLastDay = dIndex === days.length - 1;
+    const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
+
+    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 6px; font-size: 13px;">${escapeHtmlAdmin(day)}</th>`;
+    
+    for (let i = 1; i <= 2; i++) {
+      for (let p = 1; p <= 7; p++) {
+        let subBorderRight = '1px solid #334155';
+        if (p === 7 && i === 1) subBorderRight = '2px solid #64748b';
+        else if (p === 7 && i === 2) subBorderRight = dayBorderRight;
+
+        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 4px 2px;">${p}</th>`;
+      }
+    }
+  });
+
+  let rowsHtml = '';
+  teachers.forEach((t, tIdx) => {
+    let cellsHtml = '';
+    let globalColIdx = 0;
+
+    days.forEach((day, dIndex) => {
+      const isLastDay = dIndex === days.length - 1;
+      const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
+
+      const getLessonVal = (teacherObj, dayName, periodNum) => {
+        if (!teacherObj || !teacherObj.schedule) return '';
+        for (let key in teacherObj.schedule) {
+          if (key.startsWith(periodNum + '-')) {
+            return teacherObj.schedule[key][dayName] || '';
+          }
+        }
+        return '';
+      };
+
+      for (let p = 1; p <= 14; p++) {
+        const val = getLessonVal(t, day, p);
+        const isEndOfShift = (p === 7);
+        const isEndOfDay = (p === 14);
+        let cellBorderRight = '1px solid #334155';
+        if (isEndOfShift) cellBorderRight = '2px solid #64748b';
+        if (isEndOfDay) cellBorderRight = dayBorderRight;
+
+        const currentGlobalCol = globalColIdx;
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 2px; font-size: 11px;">
+          <input type="text" value="${escapeHtmlAdmin(val)}" data-teacher-id="${escapeHtmlAdmin(t.id)}" data-teacher-index="${tIdx}" data-col-index="${currentGlobalCol}" data-day="${day}" data-period="${p}" class="sched-input-cell" onpaste="handleAdminGridPaste(event, ${tIdx}, ${currentGlobalCol})" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; text-align: center; font-size: 11px; padding: 4px 0; border-radius: 3px;" />
+        </td>`;
+        globalColIdx++;
+      }
+    });
+
+    rowsHtml += `
+      <tr>
+        <td style="border: 1px solid #334155; border-right: 3px solid #38bdf8; padding: 8px; font-weight: bold; text-align: left; background: #1e293b; white-space: nowrap; position: sticky; left: 0; z-index: 2; color: #38bdf8;">${escapeHtmlAdmin(t.name)}</td>
+        ${cellsHtml}
+      </tr>
+    `;
+  });
+
+  container.innerHTML = `
+    <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+      <span style="font-size: 12px; color: #94a3b8;">💡 Ангийн дугаар (жишээ нь: 11а, 9д) шууд бичих эсвэл Excel-ээс хуулаад (Ctrl+V) тавих боломжтой.</span>
+      <button type="button" class="btn btn-primary" onclick="saveAllAdminSchedules()" style="padding: 8px 20px; font-size: 13px;">💾 Бүх хуваарийг хадгалах</button>
+    </div>
+    <div class="admin-table-wrap" style="overflow-x: auto; max-height: 70vh; border: 1px solid #334155; border-radius: 6px;">
+      <table class="admin-table" style="border-collapse: collapse; width: max-content; min-width: 100%;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; left: 0; z-index: 3;">Багш нар</th>
+            ${dayHeaderHtml}
+          </tr>
+          <tr>
+            ${subHeaderHtml}
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>`;
+}
+window.renderAdminScheduleInput = renderAdminScheduleInput;
+
+async function saveAllAdminSchedules() {
+  const inputs = document.querySelectorAll('.sched-input-cell');
+  const updatesMap = {};
+
+  inputs.forEach(input => {
+    const tId = input.dataset.teacherId;
+    const day = input.dataset.day;
+    const period = input.dataset.period;
+    const val = input.value.trim();
+
+    if (!updatesMap[tId]) {
+      const teacherObj = teachersData.find(x => String(x.id) === String(tId));
+      if (teacherObj) {
+        updatesMap[tId] = JSON.parse(JSON.stringify(teacherObj.schedule || {}));
+      }
+    }
+
+    if (updatesMap[tId]) {
+      const pKey = `${period}-р цаг`;
+      if (!updatesMap[tId][pKey]) {
+        updatesMap[tId][pKey] = { time: DEFAULT_TIMES[period - 1] || "" };
+      }
+      updatesMap[tId][pKey][day] = val;
+    }
+  });
+
+  try {
+    let successCount = 0;
+    for (let tId in updatesMap) {
+      const teacherObj = teachersData.find(x => String(x.id) === String(tId));
+      if (!teacherObj) continue;
+
+      // Анхаарах зүйл: Өмнө нь байсан кабинет болон бусад мэдээллүүдийг (roomNumbers, roomNumber, homeroomClass гэх мэт) бүрэн бүтэн хэвээр нь авч үлдэх зорилгоор teacherObj-оос шууд дамжуулж байна.
+      const payload = {
+        id: teacherObj.id,
+        name: teacherObj.name,
+        subject: teacherObj.subject || '',
+        homeroomClass: teacherObj.homeroomClass || '',
+        phone: teacherObj.phone || '',
+        roomNumbers: teacherObj.roomNumbers || [],
+        roomNumber: teacherObj.roomNumber || '',
+        image: teacherObj.image || '',
+        schedule: updatesMap[tId]
+      };
+
+      const res = await fetch('/api/teachers', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) successCount++;
+    }
+
+    alert(`✅ Амжилттай хадгалагдлаа! (${successCount} багшийн хуваарь шинэчлэгдлээ)`);
+    
+    // Өгөгдлийг шинээр татаж шинэчилнэ
+    const tRes = await fetch('/api/teachers');
+    if (tRes.ok) teachersData = await tRes.json();
+    renderAdminScheduleInput();
+  } catch (err) {
+    console.error(err);
+    alert('⚠️ Хадгалахад алдаа гарлаа.');
+  }
+}
+window.saveAllAdminSchedules = saveAllAdminSchedules;
+window.saveAllAdminSchedules = saveAllAdminSchedules;

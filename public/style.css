@@ -542,3 +542,32 @@ header.header-3col .header-right {
   .sv-teacher-list { position: relative; top: 0; max-height: 45vh; }
   .sv-sidebar { position: static; }
 }
+
+/* Хуваарь оруулах хүснэгтийн input-ийг 2-р зураг шиг болгох */
+.sched-input-cell {
+  width: 100%;
+  height: 100%;
+  background: transparent !important; /* Хайрцган фонгүй */
+  border: none !important;            /* Хүрээгүй */
+  border-radius: 0 !important;
+  color: #f8fafc;                     /* Текстийн өнгө */
+  text-align: center;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 6px 2px;
+  outline: none;
+  box-shadow: none !important;
+}
+
+/* Дээр нь хулгана очих болон фокус хийх үед зөөлөн тодрох */
+.sched-input-cell:hover,
+.sched-input-cell:focus {
+  background: rgba(56, 189, 248, 0.15) !important; /* Бичих үед маш зөөлөн цэнхэр фонтой болно */
+  color: #38bdf8;
+}
+
+/* Таблицын td хэсгийн илүүдэл padding-ийг арилгах */
+#adminScheduleTableContainer td {
+  padding: 0 !important;
+  vertical-align: middle;
+}

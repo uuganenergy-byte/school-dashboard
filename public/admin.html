@@ -37,12 +37,11 @@
     <button type="button" class="tab-main active" id="tabBtn_rooms" onclick="showTab('rooms')">🏫 Анги & Тохиргоо</button>
     <button type="button" class="tab-main" id="tabBtn_teachers" onclick="showTab('teachers')">👨‍🏫 Багшийн мэдээлэл</button>
     <button type="button" class="tab-main" id="tabBtn_import" onclick="showTab('import')">📥 Хуваарь татах (Excel)</button>
+    <button type="button" class="tab-main" id="tabBtn_schedule_input" onclick="showTab('schedule_input')">📅 Хуваарь оруулах</button>
     <button type="button" class="tab-main" id="tabBtn_map" onclick="showTab('map')">📍 2D байршил</button>
   </div>
 
-  <!-- ==================================================== -->
   <!-- ЦЭС 1: АНГИ & ТОХИРГОО                               -->
-  <!-- ==================================================== -->
   <div id="tab_rooms">
 
     <!-- Сургуулийн нийт тохиргоо -->
@@ -330,6 +329,16 @@
           <tbody id="masterSchedTbody"></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- ЦЭС: ХУВААРЬ ОРУУЛАХ                                  -->
+  <!-- ==================================================== -->
+  <div id="tab_schedule_input" style="display: none;">
+    <div class="card">
+      <div class="card-title">📅 Багш нарын 7 хоногийн хуваарь оруулах/харах</div>
+      <div id="adminScheduleTableContainer"></div>
     </div>
   </div>
 

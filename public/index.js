@@ -657,7 +657,7 @@ let svState = {
   className: '',
   day: '',
   shift: 1,
-  filter: { teacher: '', class: '', day: '' }
+  filter: { teacher: '', class: '', day: '', weekly: '' }
 };
 let svIndex = null;
 let svIndexVersion = -1;
@@ -892,7 +892,8 @@ function renderScheduleView() {
   if (svState.sub === 'teacher') renderSvTeacherShell(content);
   else if (svState.sub === 'class') renderSvClassShell(content);
   else if (svState.sub === 'day') renderSvDayShell(content);
-  else renderSvNowShell(content);
+  else if (svState.sub === 'now') renderSvNowShell(content);
+  else if (svState.sub === 'weekly') renderSvWeeklyShell(content); // <-- Энэ мөрийг нэмнэ
 }
 
 function svRefreshAll() {
@@ -1195,13 +1196,14 @@ function initScheduleView() {
 
   window.addEventListener('resize', svFitTeacherList);
 
-  view.addEventListener('input', (e) => {
-    if (!e.target.dataset || e.target.dataset.role !== 'search') return;
-    svState.filter[svState.sub] = e.target.value;
-    if (svState.sub === 'teacher') renderSvTeacherChips();
-    else if (svState.sub === 'class') renderSvClassChips();
-    else if (svState.sub === 'day') renderSvDayDetail();
-  });
+view.addEventListener('input', (e) => {
+  if (e.target.dataset && e.target.dataset.role === 'search-weekly') {
+    svState.filter.weekly = e.target.value;
+    renderSvWeeklyDetail();
+    return;
+  }
+  // ... таны бусад хуучин input шүүлтүүрүүд энд байгаа ...
+});
 
   setInterval(() => {
     if (mainView !== 'schedule') return;
@@ -1215,4 +1217,134 @@ function initScheduleView() {
       else if (svState.sub === 'day') renderSvDayDetail();
     }
   }, 5000);
+}
+
+function renderSvWeeklyShell(box) {
+  const query = svState.filter.weekly || '';
+  box.innerHTML = `
+    <div class="sv-title">📅 7 хоногоор харах (Бүх өдөр)</div>
+    <input type="text" class="sv-search" data-role="search-weekly" placeholder="🔍 Багшийн нэрээр шүүх..." value="${escapeHtml(query)}">
+    <div id="svWeeklyDetail"></div>`;
+  renderSvWeeklyDetail();
+}
+
+function renderSvWeeklyDetail() {
+  const box = document.getElementById('svWeeklyDetail');
+  if (!box) return;
+
+  const query = (svState.filter.weekly || '').trim();
+  
+  // Багш нарын хүссэн тогтмол дараалал
+const customOrder = [
+    "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал", 
+    "Г.Аззаяа", "Ц.Энхчимэг", "А.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
+    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Одмаа", 
+    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "Э.Цогзолмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
+    "Г.Одмаа", "Л.Бямбадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
+    "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай", 
+    "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа", 
+    "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан", 
+    "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан", 
+    "Д.Алтанцоож", "П.Эрдэнэцэцэг", "Л.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
+    "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан", 
+    "Э.Лундаажанцан", "Ц.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан", "М.Оюунсүх"
+  ];
+
+  const allTeachers = svSortedTeachers();
+  
+  // Зурган дээрх дарааллын дагуу багш нарыг эрэмбэлэх
+  let teachers = [];
+  customOrder.forEach(name => {
+    const found = allTeachers.find(t => t.name.trim() === name.trim());
+    if (found) teachers.push(found);
+  });
+
+  // Жагсаалтад ороогүй шинэ багш байвал араас нь нэмэх
+  allTeachers.forEach(t => {
+    if (!teachers.some(existing => existing.name.trim() === t.name.trim())) {
+      teachers.push(t);
+    }
+  });
+
+  // Хайлтын утга бичсэн байвал шүүх
+  if (query) {
+    teachers = teachers.filter(t => svMatches(t.name, query));
+  }
+
+  if (!teachers.length) {
+    box.innerHTML = `<div class="sv-empty">Багш олдсонгүй</div>`;
+    return;
+  }
+
+  const days = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан'];
+
+  let dayHeaderHtml = '';
+  let subHeaderHtml = '';
+
+  days.forEach((day, dIndex) => {
+    const isLastDay = dIndex === days.length - 1;
+    const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
+
+    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 6px; font-size: 13px;">${escapeHtml(day)}</th>`;
+    
+    for (let i = 1; i <= 2; i++) {
+      for (let p = 1; p <= 7; p++) {
+        let subBorderRight = '1px solid #334155';
+        if (p === 7 && i === 1) {
+          subBorderRight = '2px solid #64748b';
+        } else if (p === 7 && i === 2) {
+          subBorderRight = dayBorderRight;
+        }
+
+        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 4px 2px;">${p}</th>`;
+      }
+    }
+  });
+
+  let rowsHtml = '';
+  teachers.forEach((t) => {
+    let cellsHtml = '';
+    days.forEach((day, dIndex) => {
+      const isLastDay = dIndex === days.length - 1;
+      const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
+
+      for (let p = 1; p <= 7; p++) {
+        const val = svLesson(t, day, p);
+        const cellBorderRight = (p === 7) ? '2px solid #64748b' : '1px solid #334155';
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+      }
+      for (let p = 8; p <= 14; p++) {
+        const val = svLesson(t, day, p);
+        const isEndOfDay = (p === 14);
+        const cellBorderRight = isEndOfDay ? dayBorderRight : '1px solid #334155';
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+      }
+    });
+
+    rowsHtml += `
+      <tr>
+        <td style="border: 1px solid #334155; border-right: 3px solid #38bdf8; padding: 8px; font-weight: bold; text-align: left; background: #1e293b; white-space: nowrap; position: sticky; left: 0; z-index: 2;">${escapeHtml(t.name)}</td>
+        ${cellsHtml}
+      </tr>
+    `;
+  });
+
+  box.innerHTML = `
+    <div class="sv-summary" style="margin-bottom: 10px;">📅 <b>Бүх багш нарын 7 хоногийн нэгдсэн хуваарь</b></div>
+    <div class="sv-table-wrap" style="overflow-x: auto;">
+      <table class="sv-table" style="border-collapse: collapse; width: max-content; min-width: 100%;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; left: 0; z-index: 3;">Багш нар</th>
+            ${dayHeaderHtml}
+          </tr>
+          <tr>
+            ${subHeaderHtml}
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>`;
 }
