@@ -169,30 +169,11 @@ function renderScheduleTable(room) {
 
   for (let i = 1; i <= 7; i++) {
     const pKey = `${i}-р цаг`;
-    
-    let subj1 = '-';
-    if (s1[pKey]) {
-      const targetDay = (activeDay || '').trim();
-      const foundKey = Object.keys(s1[pKey]).find(k => k.trim() === targetDay);
-      if (foundKey && s1[pKey][foundKey] && s1[pKey][foundKey].trim() !== '') {
-        subj1 = s1[pKey][foundKey];
-      }
-    }
-
-    let subj2 = '-';
-    if (s2[pKey]) {
-      const targetDay = (activeDay || '').trim();
-      const foundKey = Object.keys(s2[pKey]).find(k => k.trim() === targetDay);
-      if (foundKey && s2[pKey][foundKey] && s2[pKey][foundKey].trim() !== '') {
-        subj2 = s2[pKey][foundKey];
-      }
-    }
-
-    html += `<tr><td><b>${i}</b></td><td>${escapeHtml(subj1)}</td><td>${escapeHtml(subj2)}</td></tr>`;
+    const subj1 = s1[pKey]?.[activeDay] || '-';
+    const subj2 = s2[pKey]?.[activeDay] || '-';
+    html += `<tr><td><b>${i}</b></td><td>${subj1}</td><td>${subj2}</td></tr>`;
   }
-  
   html += `</tbody></table>`;
-  
   const schedBox = document.getElementById('schedTableBox');
   if (schedBox) schedBox.innerHTML = html;
 }
@@ -392,8 +373,7 @@ function updateLiveMapMarkers(now) {
   teachersData.forEach(teacher => {
     if (!teacher || !teacher.name) return;
     const tName = (teacher.name || '').toLowerCase();
-    // А.Ууганбаяр, А.Доржпүрэв нар давхацвал Д108 анги руу чиглүүлнэ
-    if (tName.includes('ууганбаяр') || tName.includes('доржпүрэв')) {
+    if (tName.includes('доржпүрэв') || tName.includes('ууганбаяр') || tName.includes('отгонбат') || tName.includes('наранзул')) {
       const lessonInfo = getCurrentLessonInfo(teacher.schedule, curDay, curTimeStr);
       if (lessonInfo) {
         const matchedRooms = findRoomsForLesson(lessonInfo.text);
@@ -412,69 +392,34 @@ function updateLiveMapMarkers(now) {
     let targetRooms = findRoomsForLesson(lesson);
 
     const tName = (teacher.name || '').toLowerCase();
-    const isUuganbayarOrDorjpurev = tName.includes('ууганбаяр') || tName.includes('доржпүрэв');
+    const isSpecialTeacher = tName.includes('доржпүрэв') || tName.includes('ууганбаяр') || tName.includes('отгонбат') || tName.includes('наранзул');
     const isByambadorj = tName.includes('бямбадорж');
-    const isRoom111Teacher = tName.includes('мөнгөнбаясгалан') || tName.includes('мөнхтайван') || tName.includes('оюунсүх');
 
-    // 1. Л.Бямбадорж давхцвал 207 анги руу
     if (isByambadorj) {
+      const byambadorjTokens = svClassTokens(lesson);
       let hasConflict = false;
       teachersData.forEach(otherTeacher => {
         if (!otherTeacher || otherTeacher === teacher || !otherTeacher.name) return;
         const otherLessonInfo = getCurrentLessonInfo(otherTeacher.schedule, curDay, curTimeStr);
         if (otherLessonInfo && otherLessonInfo.period === lessonInfo.period) {
-          hasConflict = true;
+          const otherTokens = svClassTokens(otherLessonInfo.text);
+          if (byambadorjTokens.some(tok => otherTokens.includes(tok))) {
+            hasConflict = true;
+          }
         }
       });
       if (hasConflict) {
         const room207 = roomsData.find(r => String(r.roomNumber) === '207');
-        if (room207) targetRooms = [{ room: room207, group: '' }];
-      }
-    }
-
-    // 2. Г.Мөнгөнбаясгалан, П.Мөнхтайван, М.Оюунсүх нар давхцвал 111 анги руу
-    if (isRoom111Teacher) {
-      let hasConflict = false;
-      teachersData.forEach(otherTeacher => {
-        if (!otherTeacher || otherTeacher === teacher || !otherTeacher.name) return;
-        const otherLessonInfo = getCurrentLessonInfo(otherTeacher.schedule, curDay, curTimeStr);
-        if (otherLessonInfo && otherLessonInfo.period === lessonInfo.period) {
-          hasConflict = true;
+        if (room207) {
+          targetRooms = [{ room: room207, group: '' }];
         }
-      });
-      if (hasConflict) {
-        const room111 = roomsData.find(r => String(r.roomNumber) === '111');
-        if (room111) targetRooms = [{ room: room111, group: '' }];
       }
     }
 
-    // 3. А.Ууганбаяр, А.Доржпүрэв нар давхцвал Д108 анги руу
-    if (!isUuganbayarOrDorjpurev && !isByambadorj && !isRoom111Teacher && targetRooms.some(tr => specialActiveRooms.has(String(tr.room.roomNumber)))) {
+    if (!isSpecialTeacher && !isByambadorj && targetRooms.some(tr => specialActiveRooms.has(String(tr.room.roomNumber)))) {
       const room108 = roomsData.find(r => String(r.roomNumber) === '108' || String(r.roomNumber).toUpperCase() === 'Д108');
       if (room108) {
         targetRooms = [{ room: room108, group: '' }];
-      }
-    }
-
-    // 4. Бусад багш нарын хувьд: 1-р ээлжинд (цаг <= 7) бага тоотой анги, 2-р ээлжинд (цаг > 7) их тоотой анги давхацвал "Сонгон дунд байр" дээр харагдах логик
-    if (!isUuganbayarOrDorjpurev && !isByambadorj && !isRoom111Teacher) {
-      let hasConflict = false;
-      teachersData.forEach(otherTeacher => {
-        if (!otherTeacher || otherTeacher === teacher || !otherTeacher.name) return;
-        const otherLessonInfo = getCurrentLessonInfo(otherTeacher.schedule, curDay, curTimeStr);
-        if (otherLessonInfo && otherLessonInfo.period === lessonInfo.period) {
-          hasConflict = true;
-        }
-      });
-
-      if (hasConflict) {
-        const isShift1 = lessonInfo.period <= 7;
-        const targetRoomNumber = isShift1 ? 'Сонгон дунд байр (бага)' : 'Сонгон дунд байр (их)';
-        
-        const selectionRoom = roomsData.find(r => String(r.name || '').includes('Сонгон дунд байр') || String(r.roomNumber) === targetRoomNumber);
-        if (selectionRoom) {
-          targetRooms = [{ room: selectionRoom, group: '' }];
-        }
       }
     }
 
@@ -753,6 +698,7 @@ function showMainView(name) {
   }
 }
 
+// Утасны жагсаалтыг шинэ шаардлагаар render хийх функц
 function renderPhonesView() {
   const grid = document.getElementById('phonesGrid');
   if (!grid) return;
@@ -762,6 +708,7 @@ function renderPhonesView() {
     return;
   }
 
+  // Цэгийн хойд талын нэрээр эрэмбэлэх функц (Жишээ нь: "Б.Ариунцэцэг" -> "Ариунцэцэг")
   const givenName = (full) => {
     const s = String(full || '').trim();
     const i = s.lastIndexOf('.');
@@ -776,9 +723,12 @@ function renderPhonesView() {
 
   grid.innerHTML = sorted.map(t => `
     <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 15px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;">
+      <!-- Багшийн утасны дугаар бусад мэдээллээс том -->
       <div style="font-size: 22px; font-weight: bold; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 8px 14px; border-radius: 6px; border: 1px dashed #38bdf8; width: 100%; letter-spacing: 0.5px;">
         📱 ${escapeHtml(t.phone || 'Дугаар байхгүй')}
       </div>
+
+      <!-- Доод талд нь багшийн аватар, нэр, заадаг хичээл, даасан анги жижгээр -->
       <div style="display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;">
         <div style="width: 50px; height: 70px; border-radius: 6px; background: #334155; overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
           ${t.image ? `<img src="${escapeHtml(t.image)}" style="width: 100%; height: 100%; object-fit: cover;">` : '👨‍🏫'}
@@ -889,59 +839,6 @@ function svBuildIndex() {
     });
   });
 
-  if (typeof roomsData !== 'undefined' && Array.isArray(roomsData)) {
-    roomsData.forEach(r => {
-      if (r.scheduleClass1) {
-        SV_DAYS.forEach(day => {
-          for (let p = 1; p <= 7; p++) {
-            const pKey = `${p}-р цаг`;
-            const lessonText = r.scheduleClass1[pKey]?.[day];
-            const groupLabel = r.class1Group;
-            if (lessonText && lessonText !== '-' && groupLabel) {
-              svClassTokens(groupLabel).forEach(tok => {
-                const entry = ensure(tok);
-                if (!entry.grid[day]) entry.grid[day] = {};
-                if (!entry.grid[day][p]) entry.grid[day][p] = [];
-                if (!entry.grid[day][p].some(x => x.text === lessonText)) {
-                  entry.grid[day][p].push({ 
-                    t: { name: `Кабинет: ${r.roomNumber}`, subject: lessonText, id: 'room_' + r.roomNumber }, 
-                    text: lessonText 
-                  });
-                  entry.lessons++;
-                }
-              });
-            }
-          }
-        });
-      }
-
-      if (r.scheduleClass2) {
-        SV_DAYS.forEach(day => {
-          for (let i = 1; i <= 7; i++) {
-            const p = i + 7;
-            const pKey = `${i}-р цаг`;
-            const lessonText = r.scheduleClass2[pKey]?.[day];
-            const groupLabel = r.class2Group;
-            if (lessonText && lessonText !== '-' && groupLabel) {
-              svClassTokens(groupLabel).forEach(tok => {
-                const entry = ensure(tok);
-                if (!entry.grid[day]) entry.grid[day] = {};
-                if (!entry.grid[day][p]) entry.grid[day][p] = [];
-                if (!entry.grid[day][p].some(x => x.text === lessonText)) {
-                  entry.grid[day][p].push({ 
-                    t: { name: `Кабинет: ${r.roomNumber}`, subject: lessonText, id: 'room_' + r.roomNumber }, 
-                    text: lessonText 
-                  });
-                  entry.lessons++;
-                }
-              });
-            }
-          }
-        });
-      }
-    });
-  }
-
   roomsData.forEach(r => [r.class1Group, r.class2Group].forEach(g => svClassTokens(g).forEach(ensure)));
 
   const list = Array.from(classes.values()).sort((a, b) => {
@@ -996,7 +893,7 @@ function renderScheduleView() {
   else if (svState.sub === 'class') renderSvClassShell(content);
   else if (svState.sub === 'day') renderSvDayShell(content);
   else if (svState.sub === 'now') renderSvNowShell(content);
-  else if (svState.sub === 'weekly') renderSvWeeklyShell(content);
+  else if (svState.sub === 'weekly') renderSvWeeklyShell(content); // <-- Энэ мөрийг нэмнэ
 }
 
 function svRefreshAll() {
@@ -1299,13 +1196,14 @@ function initScheduleView() {
 
   window.addEventListener('resize', svFitTeacherList);
 
-  view.addEventListener('input', (e) => {
-    if (e.target.dataset && e.target.dataset.role === 'search-weekly') {
-      svState.filter.weekly = e.target.value;
-      renderSvWeeklyDetail();
-      return;
-    }
-  });
+view.addEventListener('input', (e) => {
+  if (e.target.dataset && e.target.dataset.role === 'search-weekly') {
+    svState.filter.weekly = e.target.value;
+    renderSvWeeklyDetail();
+    return;
+  }
+  // ... таны бусад хуучин input шүүлтүүрүүд энд байгаа ...
+});
 
   setInterval(() => {
     if (mainView !== 'schedule') return;
@@ -1336,34 +1234,39 @@ function renderSvWeeklyDetail() {
 
   const query = (svState.filter.weekly || '').trim();
   
+  // Таны зураг дээрх хүссэн дарааллаар багш нарын нэрсийг орууллаа
   const customOrder = [
     "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал", 
-    "Г.Аззаяа", "Ц.Энхчимэг", "А.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
-    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Одмаа", 
-    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "Э.Цогзолмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
-    "Г.Одмаа", "Л.Бямбадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
+    "Г.Аззаяа", "Ц.Энхчимэг", "A.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
+    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Өдмаа", 
+    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "З.Цоголмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
+    "Г.Одмаа", "Л.Лямбаадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
     "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай", 
     "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа", 
     "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан", 
     "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан", 
-    "Д.Алтанцоож", "П.Эрдэнэцэцэг", "Л.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
+    "Д.Алтанцэцэг", "П.Эрдэнэцэцэг", "П.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
     "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан", 
-    "Э.Лундаажанцан", "Ц.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан", "М.Оюунсүх"
+    "З.Лхагдаажанцан", "П.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан"
   ];
 
   const allTeachers = svSortedTeachers();
+  
+  // Зурган дээрх дарааллын дагуу багш нарыг эрэмбэлэх
   let teachers = [];
   customOrder.forEach(name => {
     const found = allTeachers.find(t => t.name.trim() === name.trim());
     if (found) teachers.push(found);
   });
 
+  // Хэрэв нйлүүлсэн жагсаалтад ороогүй шинэ багш байвал араас нь нэмэх
   allTeachers.forEach(t => {
     if (!teachers.some(existing => existing.name.trim() === t.name.trim())) {
       teachers.push(t);
     }
   });
 
+  // Хэрэв хайлтын утга бичсэн байвал шүүх
   if (query) {
     teachers = teachers.filter(t => svMatches(t.name, query));
   }
@@ -1401,21 +1304,20 @@ function renderSvWeeklyDetail() {
   let rowsHtml = '';
   teachers.forEach((t) => {
     let cellsHtml = '';
-    days.forEach((day, dIndex) => {
+    days.forceEach ? null : days.forEach((day, dIndex) => { // safe iteration
       const isLastDay = dIndex === days.length - 1;
       const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
 
       for (let p = 1; p <= 7; p++) {
         const val = svLesson(t, day, p);
         const cellBorderRight = (p === 7) ? '2px solid #64748b' : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; background: #0f172a; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
       }
-      
       for (let p = 8; p <= 14; p++) {
         const val = svLesson(t, day, p);
         const isEndOfDay = (p === 14);
         const cellBorderRight = isEndOfDay ? dayBorderRight : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; background: #182235; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
       }
     });
 
