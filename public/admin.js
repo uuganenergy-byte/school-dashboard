@@ -1228,7 +1228,7 @@ window.handleAdminGridPaste = handleAdminGridPaste;
 function isElectiveTextAdmin(text) {
   const t = String(text || '');
   if (/сонгон/i.test(t)) return true;
-  return /(?<![\p{L}\d])\d{1,2}\p{L}?\s*[-\u2013\u2014]\s*[сc](?![\p{L}\d])/iu.test(t);
+  return /(?<![\p{L}\d])\d{1,2}\p{L}{0,4}\s*[-\u2013\u2014]\s*[сc](?![\p{L}\d])/iu.test(t);
 }
 
 function markElectiveInput(input) {

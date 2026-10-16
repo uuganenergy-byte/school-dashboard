@@ -409,11 +409,12 @@ function findRoomsForLesson(lessonText) {
   const text = normText(lessonText);
   if (!text) return [];
 
+  const tokens = svClassTokens(lessonText);   // 11аб -> 11А, 11Б
   const found = [];
   for (const r of roomsData) {
     for (const g of [r.class1Group, r.class2Group]) {
       const grp = cleanGroup(g);
-      if (grp && containsWord(text, grp)) {
+      if (grp && (containsWord(text, grp) || tokens.includes(grp))) {
         found.push({ room: r, group: g });
         break;
       }
@@ -531,11 +532,16 @@ function updateLiveMapMarkers(now) {
       if (!c || typeof c.x !== 'number' || typeof c.y !== 'number') return;
       const key = String(room.roomNumber);
       if (!byRoom.has(key)) byRoom.set(key, { room, items: [] });
-      byRoom.get(key).items.push({ teacher, group });
+      byRoom.get(key).items.push({ teacher, group, elective: isElectiveText(lesson) });
     });
   });
 
-  byRoom.forEach(({ room, items }) => {
+  byRoom.forEach(({ room, items: allItems }) => {
+    // Нэг кабинетэд 2+ багш давхцвал, сонгон ("с") хичээлтэй багшийг нууна (2D зураг дээр шигдэхээс сэргийлнэ).
+    // Бүгд сонгон бол өрөө хоосон үлдэхгүйн тулд хэвээр үлдээнэ.
+    const regular = allItems.filter(i => !i.elective);
+    const items = (allItems.length > 1 && regular.length > 0) ? regular : allItems;
+
     const cluster = document.createElement('div');
     cluster.className = 'teacher-map-cluster';
     cluster.style.cssText =
@@ -907,13 +913,9 @@ function svAvatar(t, cls) {
   return `<div class="${cls || 'sv-avatar'}">${t.image ? `<img src="${escapeHtml(t.image)}" alt="">` : '👨‍🏫'}</div>`;
 }
 
+// "11а" -> ["11А"], "11аб" -> ["11А","11Б"] (нэг тоонд хэд хэдэн ангийн үсэг залгаж бичиж болно)
 function svClassTokens(text) {
-  const out = [];
-  const norm = normText(text);
-  const re = /(?<![\p{L}\d])(\d{1,2})(\p{L})(?![\p{L}\d])/gu;
-  let m;
-  while ((m = re.exec(norm)) !== null) out.push(m[1] + m[2]);
-  return out;
+  return svClassTokensDetailed(text).map(x => x.label);
 }
 
 // ================= СОНГОН СУДЛАХ ХИЧЭЭЛ =================
@@ -926,7 +928,7 @@ function isElectiveText(text) {
   const n = normText(text);
   if (!n) return false;
   if (n.includes('СОНГОН')) return true;
-  return /(?<![\p{L}\d])\d{1,2}\p{L}?\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/u.test(n);
+  return /(?<![\p{L}\d])\d{1,2}\p{L}{0,4}\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/u.test(n);
 }
 
 // Ангийн токен бүрийг (11А, 9Д ...) сонгон судлах эсэхтэй нь хамт буцаана
@@ -934,12 +936,12 @@ function svClassTokensDetailed(text) {
   const out = [];
   const norm = normText(text);
   const wordElective = norm.includes('СОНГОН');
-  const re = /(?<![\p{L}\d])(\d{1,2})(\p{L})(?![\p{L}\d])/gu;
+  const re = /(?<![\p{L}\d])(\d{1,2})(\p{L}{1,4})(?![\p{L}\d])/gu;   // 11а, 11аб, 11абв
   let m;
   while ((m = re.exec(norm)) !== null) {
     const rest = norm.slice(m.index + m[0].length);
     const elective = wordElective || /^\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/u.test(rest);
-    out.push({ label: m[1] + m[2], elective });
+    for (const ch of m[2]) out.push({ label: m[1] + ch, elective });   // 11аб -> 11А, 11Б
   }
   return out;
 }
