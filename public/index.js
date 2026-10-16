@@ -274,7 +274,7 @@ function renderScheduleTable(room) {
     const pKey = `${i}-р цаг`;
     const subj1 = s1[pKey]?.[activeDay] || '-';
     const subj2 = s2[pKey]?.[activeDay] || '-';
-    html += `<tr><td><b>${i}</b></td><td>${escapeHtml(subj1)}</td><td>${escapeHtml(subj2)}</td></tr>`;
+    html += `<tr><td><b>${i}</b></td><td${isElectiveText(subj1) ? ' class="sv-elective"' : ''}>${escapeHtml(subj1)}</td><td${isElectiveText(subj2) ? ' class="sv-elective"' : ''}>${escapeHtml(subj2)}</td></tr>`;
   }
   html += `</tbody></table>`;
   const schedBox = document.getElementById('schedTableBox');
@@ -916,6 +916,52 @@ function svClassTokens(text) {
   return out;
 }
 
+// ================= СОНГОН СУДЛАХ ХИЧЭЭЛ =================
+// "11а"   -> үндсэн хичээл
+// "11а-с" -> сонгон судлах хичээл (ангийн ард "-с"), мөн "сонгон" гэсэн үг орсон бол
+// Сонгон судлах хичээл хуваарь харах бүх хэсэгт шар дэвсгэртэй харагдана.
+const ELECTIVE_INLINE_STYLE = 'background:#facc15; color:#1e293b; font-weight:bold;';
+
+function isElectiveText(text) {
+  const n = normText(text);
+  if (!n) return false;
+  if (n.includes('СОНГОН')) return true;
+  return /(?<![\p{L}\d])\d{1,2}\p{L}?\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/u.test(n);
+}
+
+// Ангийн токен бүрийг (11А, 9Д ...) сонгон судлах эсэхтэй нь хамт буцаана
+function svClassTokensDetailed(text) {
+  const out = [];
+  const norm = normText(text);
+  const wordElective = norm.includes('СОНГОН');
+  const re = /(?<![\p{L}\d])(\d{1,2})(\p{L})(?![\p{L}\d])/gu;
+  let m;
+  while ((m = re.exec(norm)) !== null) {
+    const rest = norm.slice(m.index + m[0].length);
+    const elective = wordElective || /^\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/u.test(rest);
+    out.push({ label: m[1] + m[2], elective });
+  }
+  return out;
+}
+
+// "12-с", "11-с", "10-с" (ангийн үсэггүй) -> тухайн түвшний БҮХ ангид орох сонгон судлах хичээл.
+// Буцаах утга: түвшний тоонуудын жагсаалт, жишээ нь "12-с" -> [12]
+function svGradeElectives(text) {
+  const out = [];
+  const norm = normText(text);
+  const re = /(?<![\p{L}\d])(\d{1,2})\s*[-\u2013\u2014]\s*С(?![\p{L}\d])/gu;
+  let m;
+  while ((m = re.exec(norm)) !== null) {
+    const g = parseInt(m[1], 10);
+    if (!out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+function svLegendHtml() {
+  return '<div class="sv-legend"><span class="sv-legend-box"></span> Сонгон судлах хичээл (жишээ нь: 11а-с — нэг анги, 12-с — 12-р ангийн бүгд)</div>';
+}
+
 function svBuildIndex() {
   if (svIndex && svIndexVersion === roomsVersion) return svIndex;
 
@@ -925,16 +971,19 @@ function svBuildIndex() {
     return classes.get(label);
   };
 
+  const gradeWide = [];   // "12-с" төрлийн хичээлүүд: нэг түвшний бүх ангид хамаарна
+
   teachersData.forEach(t => {
     SV_DAYS.forEach(day => {
       for (let p = 1; p <= 14; p++) {
         const text = svLesson(t, day, p);
         if (!text) continue;
-        svClassTokens(text).forEach(tok => {
+        svGradeElectives(text).forEach(grade => gradeWide.push({ t, text, day, p, grade }));
+        svClassTokensDetailed(text).forEach(({ label: tok, elective }) => {
           const entry = ensure(tok);
           if (!entry.grid[day]) entry.grid[day] = {};
           if (!entry.grid[day][p]) entry.grid[day][p] = [];
-          entry.grid[day][p].push({ t, text });
+          entry.grid[day][p].push({ t, text, elective });
           entry.lessons++;
           entry.teachers.add(String(t.id));
         });
@@ -943,6 +992,18 @@ function svBuildIndex() {
   });
 
   roomsData.forEach(r => [r.class1Group, r.class2Group].forEach(g => svClassTokens(g).forEach(ensure)));
+
+  // Түвшний сонгон ("12-с"): тухайн түвшний (12А, 12Б, 12В ...) бүх ангид нэмнэ
+  gradeWide.forEach(({ t, text, day, p, grade }) => {
+    classes.forEach(entry => {
+      if (parseInt(entry.label, 10) !== grade) return;
+      if (!entry.grid[day]) entry.grid[day] = {};
+      if (!entry.grid[day][p]) entry.grid[day][p] = [];
+      entry.grid[day][p].push({ t, text, elective: true, gradeWide: grade });
+      entry.lessons++;
+      entry.teachers.add(String(t.id));
+    });
+  });
 
   const list = Array.from(classes.values()).sort((a, b) => {
     const ga = parseInt(a.label, 10), gb = parseInt(b.label, 10);
@@ -959,7 +1020,7 @@ function svRoomsOfClass(label) {
   return roomsData.filter(r => [r.class1Group, r.class2Group].some(g => svClassTokens(g).includes(label)));
 }
 
-function svTableHtml(cellFn, times, info, curP) {
+function svTableHtml(cellFn, times, info, curP, clsFn) {
   const blocks = [{ name: '🌅 1-р ээлж', from: 1 }, { name: '🌇 2-р ээлж', from: 8 }];
   let body = '';
 
@@ -973,7 +1034,8 @@ function svTableHtml(cellFn, times, info, curP) {
         const inner = cellFn(day, p);
         if (inner) any = true;
         const isNow = curP === p && info.dayName === day;
-        tds += `<td class="sv-cell${isNow ? ' sv-now' : ''}">${inner || ''}</td>`;
+        const extra = clsFn ? clsFn(day, p) : '';
+        tds += `<td class="sv-cell${isNow ? ' sv-now' : ''}${extra ? ' ' + extra : ''}">${inner || ''}</td>`;
       });
       const isCur = curP === p && info.dayName;
       rowsHtml += `<tr class="${isCur ? 'sv-cur-row' : ''}"><td class="sv-pnum">${i + 1}</td><td class="sv-time">${escapeHtml(times[p - 1])}</td>${tds}</tr>`;
@@ -1069,7 +1131,7 @@ function renderSvTeacherDetail() {
   const table = svTableHtml((day, p) => {
     const text = svLesson(t, day, p);
     return text ? `<span class="sv-lesson">${escapeHtml(text)}</span>` : '';
-  }, times, info, curP);
+  }, times, info, curP, (day, p) => isElectiveText(svLesson(t, day, p)) ? 'sv-elective' : '');
 
   box.innerHTML = `
     <div class="sv-info">
@@ -1081,7 +1143,7 @@ function renderSvTeacherDetail() {
         <div style="margin-top:6px;">${badge}</div>
       </div>
     </div>
-    ${table || '<div class="sv-empty">Энэ багшийн хичээлийн хуваарь оруулаагүй байна</div>'}`;
+    ${table ? svLegendHtml() + table : '<div class="sv-empty">Энэ багшийн хичээлийн хуваарь оруулаагүй байна</div>'}`;
 }
 
 function renderSvClassShell(box) {
@@ -1131,7 +1193,7 @@ function renderSvClassDetail() {
   const table = svTableHtml((day, p) => {
     const list = (entry.grid[day] && entry.grid[day][p]) || [];
     return list.map(x =>
-      `<div class="sv-tline"><b>${escapeHtml(x.t.name)}</b>${x.t.subject ? `<small>${escapeHtml(x.t.subject)}</small>` : ''}</div>`
+      `<div class="sv-tline${x.elective ? ' sv-elective' : ''}"><b>${escapeHtml(x.t.name)}</b>${x.t.subject ? `<small>${escapeHtml(x.t.subject)}</small>` : ''}${x.gradeWide ? `<small>🎓 ${x.gradeWide}-р ангийн бүгд</small>` : ''}</div>`
     ).join('');
   }, times, info, curP);
 
@@ -1144,7 +1206,7 @@ function renderSvClassDetail() {
         <div>📚 7 хоногт <b>${entry.lessons}</b> цаг · 👨‍🏫 <b>${entry.teachers.size}</b> багш</div>
       </div>
     </div>
-    ${table || '<div class="sv-empty">Энэ ангийн хичээл олдсонгүй</div>'}`;
+    ${table ? svLegendHtml() + table : '<div class="sv-empty">Энэ ангийн хичээл олдсонгүй</div>'}`;
 }
 
 function renderSvDayShell(box) {
@@ -1204,13 +1266,14 @@ function renderSvDayDetail() {
   const body = rows.map(r => {
     const tds = r.cells.map((text, i) => {
       const now = isToday && curP === from + i;
-      return `<td class="sv-cell${now && text ? ' sv-now' : ''}">${text ? `<span class="sv-lesson">${escapeHtml(text)}</span>` : ''}</td>`;
+      return `<td class="sv-cell${now && text ? ' sv-now' : ''}${isElectiveText(text) ? ' sv-elective' : ''}">${text ? `<span class="sv-lesson">${escapeHtml(text)}</span>` : ''}</td>`;
     }).join('');
     return `<tr><td class="sv-name-col" data-action="open-teacher" data-id="${escapeHtml(r.t.id)}"><b>${escapeHtml(r.t.name)}</b>${r.t.subject ? `<small>${escapeHtml(r.t.subject)}</small>` : ''}</td>${tds}</tr>`;
   }).join('');
 
   box.innerHTML = `
     <div class="sv-summary">📅 <b>${escapeHtml(svState.day)}</b> · ${svState.shift}-р ээлж · <b>${rows.length}</b> багш хичээлтэй</div>
+    ${svLegendHtml()}
     <div class="sv-table-wrap"><table class="sv-table sv-day-table"><thead><tr><th class="sv-name-col">Багш</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
@@ -1255,7 +1318,7 @@ function renderSvNow() {
         <div class="sv-now-info">
           <div class="sv-now-name">${escapeHtml(t.name)}</div>
           <div class="sv-now-sub">${escapeHtml(t.subject || '-')}</div>
-          <div class="sv-now-lesson">📚 <b>${escapeHtml(cur.text)}</b> ангид${room ? ' · 🏫 ' + escapeHtml(room) + ' тоот' : ''}</div>
+          <div class="sv-now-lesson${isElectiveText(cur.text) ? ' sv-elective' : ''}">📚 <b>${escapeHtml(cur.text)}</b> ангид${room ? ' · 🏫 ' + escapeHtml(room) + ' тоот' : ''}</div>
           <div class="sv-now-time">🕒 ${escapeHtml(periodText)} · ${escapeHtml(cur.time)}</div>
         </div>
       </div>`;
@@ -1388,13 +1451,13 @@ function renderSvWeeklyDetail() {
       for (let p = 1; p <= 7; p++) {
         const val = svLesson(t, day, p);
         const cellBorderRight = (p === 7) ? '2px solid #64748b' : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;${isElectiveText(val) ? ' ' + ELECTIVE_INLINE_STYLE : ''}">${escapeHtml(val)}</td>`;
       }
       for (let p = 8; p <= 14; p++) {
         const val = svLesson(t, day, p);
         const isEndOfDay = (p === 14);
         const cellBorderRight = isEndOfDay ? dayBorderRight : '1px solid #334155';
-        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;">${escapeHtml(val)}</td>`;
+        cellsHtml += `<td style="border: 1px solid #334155; border-right: ${cellBorderRight}; text-align: center; padding: 6px 2px; font-size: 11px;${isElectiveText(val) ? ' ' + ELECTIVE_INLINE_STYLE : ''}">${escapeHtml(val)}</td>`;
       }
     });
 
@@ -1408,6 +1471,7 @@ function renderSvWeeklyDetail() {
 
   box.innerHTML = `
     <div class="sv-summary" style="margin-bottom: 10px;">📅 <b>Бүх багш нарын 7 хоногийн нэгдсэн хуваарь</b></div>
+    ${svLegendHtml()}
     <div class="sv-table-wrap" style="overflow-x: auto;">
       <table class="sv-table" style="border-collapse: collapse; width: max-content; min-width: 100%;">
         <thead>

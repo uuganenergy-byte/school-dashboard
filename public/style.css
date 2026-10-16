@@ -571,3 +571,14 @@ header.header-3col .header-right {
   padding: 0 !important;
   vertical-align: middle;
 }
+
+/* ================= СОНГОН СУДЛАХ ХИЧЭЭЛ (11а-с) - шар дэвсгэр ================= */
+.sv-elective { background: #facc15 !important; color: #1e293b !important; }
+.sv-elective b, .sv-elective small, .sv-elective .sv-lesson { background: transparent !important; color: #1e293b !important; }
+.sv-tline.sv-elective { border-radius: 4px; padding: 2px 5px; }
+.sv-now-lesson.sv-elective { border-radius: 4px; padding: 2px 6px; display: inline-block; }
+table.mini-table td.sv-elective { font-weight: bold; }
+.sv-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; margin: 0 0 8px; }
+.sv-legend-box { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: #facc15; }
+/* Админ: хуваарь оруулах талбар дахь сонгон судлах хичээл */
+.sched-input-cell.is-elective { background: #facc15 !important; color: #1e293b !important; font-weight: bold; }

@@ -1218,8 +1218,26 @@ function handleAdminGridPaste(e, startTeacherIdx, startColIndex) {
       }
     });
   });
+
+  refreshElectiveMarks();
 }
 window.handleAdminGridPaste = handleAdminGridPaste;
+
+// ================= СОНГОН СУДЛАХ ХИЧЭЭЛ (11а-с) =================
+// "11а" үндсэн хичээл, "11а-с" сонгон судлах хичээл. Хуваарь оруулах талбар шар өнгөтэй болно.
+function isElectiveTextAdmin(text) {
+  const t = String(text || '');
+  if (/сонгон/i.test(t)) return true;
+  return /(?<![\p{L}\d])\d{1,2}\p{L}?\s*[-\u2013\u2014]\s*[сc](?![\p{L}\d])/iu.test(t);
+}
+
+function markElectiveInput(input) {
+  input.classList.toggle('is-elective', isElectiveTextAdmin(input.value));
+}
+
+function refreshElectiveMarks() {
+  document.querySelectorAll('.sched-input-cell').forEach(markElectiveInput);
+}
 
 // ================= ХУВААРЬ ОРУУЛАХ ТАБЫН ХҮСНЭГТ =================
 function renderAdminScheduleInput() {
@@ -1301,7 +1319,7 @@ function renderAdminScheduleInput() {
 
   container.innerHTML = `
     <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <span style="font-size: 12px; color: #94a3b8;">💡 Ангийн дугаар (жишээ нь: 11а, 9д) шууд бичих эсвэл Excel-ээс хуулаад (Ctrl+V) тавих боломжтой.</span>
+      <span style="font-size: 12px; color: #94a3b8;">💡 Ангийн дугаар (жишээ нь: 11а, 9д) шууд бичих эсвэл Excel-ээс хуулаад (Ctrl+V) тавих боломжтой.<br>🟨 Сонгон судлах хичээл: <b>11а-с</b> (нэг анги) эсвэл <b>12-с</b> (12-р ангийн бүгд) гэж бичнэ (шар өнгөөр харагдана). Үндсэн хичээлийг <b>11а</b> гэж бичнэ.</span>
       <button type="button" class="btn btn-primary" onclick="saveAllAdminSchedules()" style="padding: 8px 20px; font-size: 13px;">💾 Бүх хуваарийг хадгалах</button>
     </div>
     <div class="admin-table-wrap" style="overflow-x: auto; max-height: 70vh; border: 1px solid #334155; border-radius: 6px;">
@@ -1320,6 +1338,14 @@ function renderAdminScheduleInput() {
         </tbody>
       </table>
     </div>`;
+
+  refreshElectiveMarks();
+  if (!container.dataset.electiveBound) {
+    container.addEventListener('input', (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('sched-input-cell')) markElectiveInput(e.target);
+    });
+    container.dataset.electiveBound = '1';
+  }
 }
 window.renderAdminScheduleInput = renderAdminScheduleInput;
 
