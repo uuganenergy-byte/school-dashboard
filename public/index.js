@@ -1,3 +1,96 @@
+// ================= БАГШИЙН ЭРЭМБЭ (index.js болон admin.js-д ИЖИЛ байна) =================
+// Эрэмбийг өөрчлөх бол ORDER жагсаалтыг ХОЁР файлд (index.js, admin.js) ижилхэн засна.
+(function () {
+  const ORDER = [
+    "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал",
+    "Г.Аззаяа", "Ц.Энхчимэг", "А.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд",
+    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Одмаа",
+    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "Э.Цогзолмаа", "Б.Ариунцэцэг", "Л.Авирмэд",
+    "Г.Одмаа", "Л.Бямбадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг",
+    "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай",
+    "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа",
+    "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан",
+    "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан",
+    "Д.Алтанцоож", "П.Эрдэнэцэцэг", "Л.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан",
+    "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан",
+    "Э.Лундаажанцан", "Ц.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан", "М.Оюунсүх"
+  ];
+  const LATIN = { A:'А', B:'В', C:'С', E:'Е', H:'Н', K:'К', M:'М', O:'О', P:'Р', T:'Т', X:'Х', Y:'У' };
+
+  // Зай, цэг хасаж, том үсэг болгож, латин төстэй үсгийг кирилл болгоно
+  function norm(s) {
+    return String(s || '').replace(/[\s.]+/g, '').toUpperCase()
+      .replace(/[ABCEHKMOPTXY]/g, ch => LATIN[ch]);
+  }
+
+  // Levenshtein зай (хоёр нэр хэд хэдэн үсгээр л зөрж байгааг мэдэх)
+  function lev(a, b) {
+    const m = a.length, n = b.length;
+    if (!m) return n; if (!n) return m;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+
+  let lastLogSig = '';
+
+  // 1) Нэр яг таарвал (нормчилсон) тэр байрлалд орно.
+  // 2) Таараагүй үлдсэн багш нарыг, ЭЗЭНГҮЙ үлдсэн жагсаалтын нэртэй ойролцоо (1-3 үсгийн зөрүү)
+  //    байвал тааруулна. Тү./Тө.Оюунтуяа зэрэг хоёулаа яг таарсан хүмүүс бие биедээ тааруулагдахгүй.
+  // 3) Үлдсэн нь араас нь, өгөгдсөн дарааллаараа орно.
+  function sortTeachersBySchoolOrder(list) {
+    const teachers = Array.isArray(list) ? list : [];
+    const keys = ORDER.map(norm);
+    const rank = new Map();           // teacher -> ORDER index
+    const claimed = new Set();        // ашиглагдсан ORDER index
+
+    teachers.forEach(t => {
+      const i = keys.indexOf(norm(t && t.name));
+      if (i >= 0) { rank.set(t, i); claimed.add(i); }
+    });
+
+    const pairs = [];
+    teachers.forEach(t => {
+      if (rank.has(t)) return;
+      const k = norm(t && t.name);
+      if (!k) return;
+      keys.forEach((ok, i) => {
+        if (claimed.has(i)) return;
+        const d = lev(k, ok);
+        const limit = Math.max(ok.length, k.length) >= 10 ? 3 : 2;
+        if (d <= limit) pairs.push({ t, i, d });
+      });
+    });
+    pairs.sort((a, b) => a.d - b.d);
+    const fuzzy = [];
+    pairs.forEach(p => {
+      if (rank.has(p.t) || claimed.has(p.i)) return;
+      rank.set(p.t, p.i); claimed.add(p.i);
+      fuzzy.push(`${p.t.name}  →  ${ORDER[p.i]}`);
+    });
+
+    const known = teachers.filter(t => rank.has(t)).sort((a, b) => rank.get(a) - rank.get(b));
+    const unknown = teachers.filter(t => !rank.has(t));
+
+    const sig = teachers.map(t => t && t.name).join('|');
+    if (sig !== lastLogSig && teachers.length) {
+      lastLogSig = sig;
+      if (fuzzy.length) console.info('[Эрэмбэ] Ойролцоо нэрээр тааруулсан (DB-н нэрийг засвал зөв болно):\n' + fuzzy.join('\n'));
+      if (unknown.length) console.warn('[Эрэмбэ] Жагсаалтад олдоогүй багш (төгсгөлд орно):', unknown.map(t => JSON.stringify(t && t.name)));
+    }
+    return known.concat(unknown);
+  }
+
+  window.sortTeachersBySchoolOrder = sortTeachersBySchoolOrder;
+  window.TEACHER_ORDER_LIST = ORDER;
+})();
+
 let roomsData = [];
 let teachersData = [];
 let currentPano = "";
@@ -1248,7 +1341,7 @@ function renderSvWeeklyDetail() {
   const query = (svState.filter.weekly || '').trim();
   
   // Эрэмбийг teacher-order.js дахь TEACHER_ORDER-ээс авна (нэрийг нормчилж харьцуулна)
-  let teachers = sortTeachersByOrder(svSortedTeachers());
+  let teachers = sortTeachersBySchoolOrder(svSortedTeachers());
 
   // Хэрэв хайлтын утга бичсэн байвал шүүх
   if (query) {
