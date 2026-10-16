@@ -5,7 +5,8 @@ let activeDay = getTodayName();
 let currentRoomImages = []; 
 let currentImageIndex = 0;
 let roomsVersion = 0;
-let lastMarkerKey = "";   
+let lastMarkerKey = "";
+let panoViewer = null;   // Pannellum viewer-ийн лавлагаа (санах ой алдагдахаас сэргийлнэ)   
 
 function getTodayName() {
   const days = { 1: "Даваа", 2: "Мягмар", 3: "Лхагва", 4: "Пүрэв", 5: "Баасан" };
@@ -106,23 +107,23 @@ function renderCurrentRoom() {
   if (detailInfoEl) {
     detailInfoEl.innerHTML = `
       <div class="item-card">
-        <b style="color: #38bdf8; font-size:15px;">${room.roomNumber} тоот кабинет</b>
-        <div style="margin-top:4px; font-size:12px; color:#cbd5e1;">${room.name || ''}</div>
+        <b style="color: #38bdf8; font-size:15px;">${escapeHtml(room.roomNumber)} тоот кабинет</b>
+        <div style="margin-top:4px; font-size:12px; color:#cbd5e1;">${escapeHtml(room.name || '')}</div>
         
         <div style="margin-top:8px; padding:6px 8px; background:#0f172a; border-radius:4px; font-size:12px; border-left:3px solid #38bdf8;">
           <div style="display:flex; justify-content:space-between;">
             <span style="color:#94a3b8; font-weight:bold;">1-р ээлж:</span>
-            <b style="color:#38bdf8;">${room.class1Group || 'Бүртгэгдээгүй'}</b>
+            <b style="color:#38bdf8;">${escapeHtml(room.class1Group || 'Бүртгэгдээгүй')}</b>
           </div>
-          ${room.class1Info ? `<div style="color:#f8fafc; margin-top:4px; border-top:1px solid #1e293b; padding-top:4px;">${room.class1Info}</div>` : ''}
+          ${room.class1Info ? `<div style="color:#f8fafc; margin-top:4px; border-top:1px solid #1e293b; padding-top:4px;">${escapeHtml(room.class1Info)}</div>` : ''}
         </div>
 
         <div style="margin-top:6px; padding:6px 8px; background:#0f172a; border-radius:4px; font-size:12px; border-left:3px solid #fbbf24;">
           <div style="display:flex; justify-content:space-between;">
             <span style="color:#94a3b8; font-weight:bold;">2-р ээлж:</span>
-            <b style="color:#fbbf24;">${room.class2Group || 'Бүртгэгдээгүй'}</b>
+            <b style="color:#fbbf24;">${escapeHtml(room.class2Group || 'Бүртгэгдээгүй')}</b>
           </div>
-          ${room.class2Info ? `<div style="color:#f8fafc; margin-top:4px; border-top:1px solid #1e293b; padding-top:4px;">${room.class2Info}</div>` : ''}
+          ${room.class2Info ? `<div style="color:#f8fafc; margin-top:4px; border-top:1px solid #1e293b; padding-top:4px;">${escapeHtml(room.class2Info)}</div>` : ''}
         </div>
       </div>
     `;
@@ -135,8 +136,9 @@ function renderCurrentRoom() {
       currentPano = room.panorama;
       const panoContainer = document.getElementById('panorama-container');
       if (panoContainer) {
+        destroyPanoViewer();
         panoContainer.innerHTML = '';
-        pannellum.viewer('panorama-container', { 
+        panoViewer = pannellum.viewer('panorama-container', { 
           type: 'equirectangular', 
           panorama: room.panorama, 
           autoLoad: true 
@@ -145,6 +147,7 @@ function renderCurrentRoom() {
     }
   } else {
     currentPano = "";
+    destroyPanoViewer();
     const panoContainer = document.getElementById('panorama-container');
     if (panoContainer) {
       panoContainer.innerHTML = `
@@ -161,17 +164,24 @@ function renderCurrentRoom() {
   renderScheduleTable(room);
 }
 
+function destroyPanoViewer() {
+  if (panoViewer) {
+    try { panoViewer.destroy(); } catch (e) { /* аль хэдийн устсан */ }
+    panoViewer = null;
+  }
+}
+
 function renderScheduleTable(room) {
   const s1 = room.scheduleClass1 || {};
   const s2 = room.scheduleClass2 || {};
 
-  let html = `<table class="mini-table"><thead><tr><th>Цаг</th><th>1-р ээлж (${room.class1Group||'-'})</th><th>2-р ээлж (${room.class2Group||'-'})</th></tr></thead><tbody>`;
+  let html = `<table class="mini-table"><thead><tr><th>Цаг</th><th>1-р ээлж (${escapeHtml(room.class1Group||'-')})</th><th>2-р ээлж (${escapeHtml(room.class2Group||'-')})</th></tr></thead><tbody>`;
 
   for (let i = 1; i <= 7; i++) {
     const pKey = `${i}-р цаг`;
     const subj1 = s1[pKey]?.[activeDay] || '-';
     const subj2 = s2[pKey]?.[activeDay] || '-';
-    html += `<tr><td><b>${i}</b></td><td>${subj1}</td><td>${subj2}</td></tr>`;
+    html += `<tr><td><b>${i}</b></td><td>${escapeHtml(subj1)}</td><td>${escapeHtml(subj2)}</td></tr>`;
   }
   html += `</tbody></table>`;
   const schedBox = document.getElementById('schedTableBox');
@@ -564,7 +574,7 @@ function evaluateTeacher(elemId, sched, now) {
     const rowData = sched[`${i}-р цаг`];
     if (!rowData || !rowData.time) continue;
 
-    const [start, end] = rowData.time.split('-').map(s => s.trim());
+    const [start, end] = String(rowData.time).split('-').map(s => padTime(s));
     if (start && end && curTimeStr >= start && curTimeStr <= end) {
       const lesson = rowData[curDay];
       if (lesson && lesson !== '-' && lesson !== '') {
@@ -901,6 +911,7 @@ function svRefreshAll() {
   if (svState.sub === 'teacher') { renderSvTeacherChips(); renderSvTeacherDetail(); }
   else if (svState.sub === 'class') { renderSvClassChips(); renderSvClassDetail(); }
   else if (svState.sub === 'day') { renderSvDayDetail(); }
+  else if (svState.sub === 'weekly') { renderSvWeeklyDetail(); }
   else { renderSvNow(); }
 }
 
@@ -1197,12 +1208,14 @@ function initScheduleView() {
   window.addEventListener('resize', svFitTeacherList);
 
 view.addEventListener('input', (e) => {
-  if (e.target.dataset && e.target.dataset.role === 'search-weekly') {
+  const role = e.target.dataset && e.target.dataset.role;
+  if (role === 'search-weekly') {
     svState.filter.weekly = e.target.value;
     renderSvWeeklyDetail();
-    return;
+  } else if (role === 'search') {
+    svState.filter.day = e.target.value;
+    renderSvDayDetail();
   }
-  // ... таны бусад хуучин input шүүлтүүрүүд энд байгаа ...
 });
 
   setInterval(() => {
@@ -1234,37 +1247,8 @@ function renderSvWeeklyDetail() {
 
   const query = (svState.filter.weekly || '').trim();
   
-  // Таны зураг дээрх хүссэн дарааллаар багш нарын нэрсийг орууллаа
-  const customOrder = [
-    "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал", 
-    "Г.Аззаяа", "Ц.Энхчимэг", "A.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
-    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Өдмаа", 
-    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "З.Цоголмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
-    "Г.Одмаа", "Л.Лямбаадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
-    "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай", 
-    "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа", 
-    "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан", 
-    "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан", 
-    "Д.Алтанцэцэг", "П.Эрдэнэцэцэг", "П.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
-    "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан", 
-    "З.Лхагдаажанцан", "П.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан"
-  ];
-
-  const allTeachers = svSortedTeachers();
-  
-  // Зурган дээрх дарааллын дагуу багш нарыг эрэмбэлэх
-  let teachers = [];
-  customOrder.forEach(name => {
-    const found = allTeachers.find(t => t.name.trim() === name.trim());
-    if (found) teachers.push(found);
-  });
-
-  // Хэрэв нйлүүлсэн жагсаалтад ороогүй шинэ багш байвал араас нь нэмэх
-  allTeachers.forEach(t => {
-    if (!teachers.some(existing => existing.name.trim() === t.name.trim())) {
-      teachers.push(t);
-    }
-  });
+  // Эрэмбийг teacher-order.js дахь TEACHER_ORDER-ээс авна (нэрийг нормчилж харьцуулна)
+  let teachers = sortTeachersByOrder(svSortedTeachers());
 
   // Хэрэв хайлтын утга бичсэн байвал шүүх
   if (query) {
@@ -1304,7 +1288,7 @@ function renderSvWeeklyDetail() {
   let rowsHtml = '';
   teachers.forEach((t) => {
     let cellsHtml = '';
-    days.forceEach ? null : days.forEach((day, dIndex) => { // safe iteration
+    days.forEach((day, dIndex) => {
       const isLastDay = dIndex === days.length - 1;
       const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
 

@@ -368,7 +368,8 @@ async function saveRoomData() {
     class1Info: document.getElementById('class1Info').value.trim(),
     class2Info: document.getElementById('class2Info').value.trim(),
     scheduleClass1: collectScheduleData("sc1", 7),
-    scheduleClass2: collectScheduleData("sc2", 7)
+    scheduleClass2: collectScheduleData("sc2", 7),
+    coords: existingRoom ? existingRoom.coords : undefined   // 2D байршил хадгалахад арилахаас сэргийлнэ
   };
 
   try {
@@ -1126,40 +1127,14 @@ function handleAdminGridPaste(e, startTeacherIdx, startColIndex) {
   });
 }
 window.handleAdminGridPaste = handleAdminGridPaste;
-window.handleAdminGridPaste = handleAdminGridPaste;
 
 // ================= ХУВААРЬ ОРУУЛАХ ТАБЫН ХҮСНЭГТ =================
 function renderAdminScheduleInput() {
   const container = document.getElementById('adminScheduleTableContainer');
   if (!container) return;
 
-  // Зөвхөн энэ хүснэгтэд үйлчлэх дараалал
-const customOrder = [
-    "М.Болор", "Ц.Дэлгэрмаа", "Г.Нэргүй", "Тү.Оюунтуяа", "Ц.Наранцацрал", 
-    "Г.Аззаяа", "Ц.Энхчимэг", "А.Соёлмаа", "Ж.Отгонбилэг", "Э.Батболд", 
-    "Б.Мөнхбаяр", "Н.Мөнх-Од", "Н.Цолмон", "Д.Ариунтуул", "Б.Одмаа", 
-    "С.Мөнхцэцэг", "С.Шүрэнцэцэг", "Э.Цогзолмаа", "Б.Ариунцэцэг", "Л.Авирмэд", 
-    "Г.Одмаа", "Л.Бямбадорж", "З.Наранцацрал", "Д.Ариумаа", "Э.Ганцэцэг", 
-    "Ө.Цолмонбаатар", "А.Ууганбаяр", "Б.Үүрийнтуяа", "Г.Ундрахбаяр", "М.Оюунсарнай", 
-    "Б.Алтанчимэг", "А.Доржпүрэв", "Н.Нандинцэцэг", "Ү.Магсармаа", "Тө.Оюунтуяа", 
-    "М.Хонгорзул", "О.Ганбаяр", "Д.Жаргалсайхан", "Н.Хулан", "Н.Жавзан", 
-    "Э.Түмэндэмбэрэл", "М.Аззаяа", "Э.Отгонпүрэв", "М.Түвшинбат", "Э.Уртнасан", 
-    "Д.Алтанцоож", "П.Эрдэнэцэцэг", "Л.Мөнхбаяр", "Ч.Төмөрбаатар", "М.Хулан", 
-    "М.Мөнхбаяр", "Д.Хулан", "Б.Гэрэлмандах", "П.Мөнхтайван", "Г.Мөнгөнбаясгалан", 
-    "Э.Лундаажанцан", "Ц.Отгонбат", "Ц.Ариунтуяа", "Г.Наранзул", "П.Мөнхсайхан", "М.Оюунсүх"
-  ];
-
-  let teachers = [];
-  customOrder.forEach(name => {
-    const found = teachersData.find(t => (t.name || '').trim() === name.trim());
-    if (found) teachers.push(found);
-  });
-  
-  teachersData.forEach(t => {
-    if (!teachers.some(existing => (existing.name || '').trim() === (t.name || '').trim())) {
-      teachers.push(t);
-    }
-  });
+  // Эрэмбийг teacher-order.js дахь TEACHER_ORDER-ээс авна (index.html-тэй ижил)
+  const teachers = sortTeachersByOrder(teachersData);
 
   if (!teachers.length) {
     container.innerHTML = `<div class="admin-empty">Багшийн мэдээлэл олдсонгүй</div>`;
@@ -1318,5 +1293,4 @@ async function saveAllAdminSchedules() {
     alert('⚠️ Хадгалахад алдаа гарлаа.');
   }
 }
-window.saveAllAdminSchedules = saveAllAdminSchedules;
 window.saveAllAdminSchedules = saveAllAdminSchedules;
