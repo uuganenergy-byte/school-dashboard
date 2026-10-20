@@ -498,6 +498,7 @@ function updateLiveMapMarkers(now) {
     const tName = (teacher.name || '').toLowerCase();
     const isSpecialTeacher = tName.includes('доржпүрэв') || tName.includes('ууганбаяр') || tName.includes('отгонбат') || tName.includes('наранзул');
     const isByambadorj = tName.includes('бямбадорж');
+	const isMunkhtaivan = tName.includes('мөнхтайван');
 
     if (isByambadorj) {
       const byambadorjTokens = svClassTokens(lesson);
@@ -519,6 +520,25 @@ function updateLiveMapMarkers(now) {
         }
       }
     }
+
+if (isMunkhtaivan) {
+  const otgon = teachersData.find(o => o && o.name && o.name.toLowerCase().includes('отгонбат'));
+  const oInfo = otgon ? getCurrentLessonInfo(otgon.schedule, curDay, curTimeStr) : null;
+  if (oInfo) {
+    const oRooms = findRoomsForLesson(oInfo.text).map(m => String(m.room.roomNumber));
+    const oTokens = svClassTokens(oInfo.text);
+    const myTokens = svClassTokens(lesson);
+    const sameClass = myTokens.some(tok => oTokens.includes(tok));
+    const sameRoom = targetRooms.some(tr => oRooms.includes(String(tr.room.roomNumber)));
+    if (sameClass || sameRoom) {
+      const room111 = roomsData.find(r =>
+        String(r.roomNumber) === '111' || String(r.roomNumber).toUpperCase() === 'Д111');
+      if (room111 && room111.coords && typeof room111.coords.x === 'number') {
+        targetRooms = [{ room: room111, group: '' }];
+      }
+    }
+  }
+}
 
     if (!isSpecialTeacher && !isByambadorj && targetRooms.some(tr => specialActiveRooms.has(String(tr.room.roomNumber)))) {
       const room108 = roomsData.find(r => String(r.roomNumber) === '108' || String(r.roomNumber).toUpperCase() === 'Д108');
