@@ -1546,6 +1546,20 @@ const DUTY_WEEKDAYS = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', '
 const DUTY_FLIP_MS = 6000;
 let dutySig = '';
 let dutyFlipped = false;
+let dutyRemoteRaw = '';   // серверээс авсан жижүүрийн хуваарь (JSON текст)
+const DUTY_REFRESH_MS = 30000;
+
+async function dutyFetchRemote() {
+  // /api/duty-schedule : серверийн төсөл доторх duty-schedule.json (teachers.json-ий адил)
+  try {
+    const r = await fetch('/api/duty-schedule', { cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!j || !Array.isArray(j.teachers) || !j.teachers.length) return;
+    const raw = JSON.stringify(j);
+    if (raw !== dutyRemoteRaw) { dutyRemoteRaw = raw; dutySig = ''; }
+  } catch (e) { /* сервер хариугүй бол өмнөх өгөгдлөөр үргэлжилнэ */ }
+}
 
 function dutyFmt(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1557,8 +1571,11 @@ function dutyNorm(s) {
 }
 
 function dutyLoadData() {
-  let raw = '';
-  try { raw = localStorage.getItem(DUTY_KEY) || ''; } catch (e) { /* хандах эрхгүй */ }
+  // Эхлээд серверийн өгөгдөл, байхгүй бол энэ хөтчийн (localStorage) өгөгдөл
+  let raw = dutyRemoteRaw;
+  if (!raw) {
+    try { raw = localStorage.getItem(DUTY_KEY) || ''; } catch (e) { /* хандах эрхгүй */ }
+  }
   if (!raw) return { raw: '', byShift: { 1: {}, 2: {} } };
   const byShift = { 1: {}, 2: {} };
   try {
@@ -1662,5 +1679,7 @@ function updateDutyStrip(now) {
   // Админ өөр табд өөрчлөлт хийвэл шууд шинэчилнэ
   window.addEventListener('storage', e => { if (e.key === DUTY_KEY) dutySig = ''; });
 
+  dutyFetchRemote().then(() => updateDutyStrip(new Date()));
+  setInterval(dutyFetchRemote, DUTY_REFRESH_MS);
   updateDutyStrip(new Date());
 })();

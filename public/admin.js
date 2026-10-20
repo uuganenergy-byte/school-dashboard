@@ -1433,7 +1433,7 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
   const MAX_SPAN_DAYS = 92; // хамгийн ихдээ ~3 сарын хугацаа
 
   // teachers: ["Г.Одмаа", ...] | checks: { "YYYY-MM-DD|Нэр|1": true } | off: ["YYYY-MM-DD", ...]
-  let state = { teachers: [], checks: {}, off: [], start: '', end: '' };
+  let state = { teachers: [], checks: {}, off: [], start: '', end: '', updatedAt: 0 };
 
   const pad = n => String(n).padStart(2, '0');
   const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -1442,7 +1442,7 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
   const $ = id => document.getElementById(id);
 
   function sanitize(o) {
-    const out = { teachers: [], checks: {}, off: [], start: '', end: '' };
+    const out = { teachers: [], checks: {}, off: [], start: '', end: '', updatedAt: 0 };
     if (o && Array.isArray(o.teachers)) out.teachers = [...new Set(o.teachers.map(String))];
     if (o && o.checks && typeof o.checks === 'object') {
       Object.keys(o.checks).forEach(k => { if (o.checks[k]) out.checks[k] = true; });
@@ -1450,6 +1450,7 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
     if (o && Array.isArray(o.off)) out.off = o.off.filter(isDateStr);
     if (o && isDateStr(o.start)) out.start = o.start;
     if (o && isDateStr(o.end)) out.end = o.end;
+    out.updatedAt = Number(o && o.updatedAt) || 0;
     return out;
   }
 
@@ -1467,14 +1468,72 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
     } catch (e) { console.warn('Жижүүрийн хуваарь уншиж чадсангүй:', e); }
   }
 
-  function save() {
+  // Хөтөч дээр (нөөц) хадгална
+  function persistLocal() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
+    catch (e) { console.error(e); return false; }
+  }
+
+  // Сервер рүү илгээх (бүх төхөөрөмж, touchscreen энэ өгөгдлийг уншина)
+  let pushTimer = null;
+  function schedulePush() {
+    clearTimeout(pushTimer);
+    setStatus('⏳ Серверт хадгалж байна...');
+    pushTimer = setTimeout(pushToServer, 600);
+  }
+
+  async function pushToServer() {
+    const body = { teachers: state.teachers, checks: state.checks, off: state.off, updatedAt: state.updatedAt };
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
-      setStatus('✅ Автоматаар хадгалагдлаа');
+      const r = await fetch('/api/duty-schedule', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+      });
+      if (r.ok) setStatus('✅ Серверт хадгалагдлаа');
+      else setStatus('⚠️ Серверт хадгалж чадсангүй (зөвхөн энэ хөтөч дээр хадгалагдлаа)', true);
     } catch (e) {
-      console.error(e);
-      setStatus('⚠️ Хадгалж чадсангүй', true);
+      setStatus('⚠️ Сервертэй холбогдож чадсангүй (зөвхөн энэ хөтөч дээр хадгалагдлаа)', true);
     }
+  }
+
+  function save() {
+    state.updatedAt = Date.now();
+    const ok = persistLocal();
+    if (!ok) setStatus('⚠️ Хөтөч дээр хадгалж чадсангүй', true);
+    schedulePush();
+  }
+
+  // Өгөгдлийг серверээс (teachers.json шиг төслийн дотор байгаа duty-schedule.json) уншина
+  async function fetchRemoteDuty() {
+    try {
+      const r = await fetch('/api/duty-schedule', { cache: 'no-store' });
+      return r.ok ? sanitize(await r.json()) : sanitize({});
+    } catch (e) { return sanitize({}); }
+  }
+
+  // Нээхэд тулгана: шинэ нь ялна
+  async function syncFromServer() {
+    try {
+      const remote = await fetchRemoteDuty();
+      const remoteHas = remote.updatedAt > 0;
+
+      if (remoteHas && remote.updatedAt > state.updatedAt) {
+        state.teachers = remote.teachers;
+        state.checks = remote.checks;
+        state.off = remote.off;
+        state.updatedAt = remote.updatedAt;
+        persistLocal();
+        renderOffList();
+        renderTeacherSelect();
+        renderTable();
+        setStatus('☁️ Хамгийн сүүлийн хуваарийг ачааллаа');
+      } else if (state.teachers.length && (!remoteHas || state.updatedAt > remote.updatedAt)) {
+        // Энэ хөтчийн өгөгдөл шинэ бол серверт өгнө
+        if (!state.updatedAt) { state.updatedAt = Date.now(); persistLocal(); }
+        await pushToServer();
+      }
+    } catch (e) { /* сервер хариугүй бол хөтчийн өгөгдлөөр үргэлжилнэ */ }
   }
 
   function monthRange(base) {
@@ -1635,6 +1694,7 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
     renderTeacherSelect();
     renderOffList();
     renderTable();
+    syncFromServer();
   };
 
   window.dutyRangeChanged = function () {
@@ -1693,7 +1753,7 @@ window.saveAllAdminSchedules = saveAllAdminSchedules;
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `jijuur-huvaari-${state.start || 'all'}.json`;
+    a.download = 'duty-schedule.json';
     document.body.appendChild(a);
     a.click();
     a.remove();
