@@ -30,6 +30,9 @@
   </div>
 </header>
 
+<!-- 🧑‍🏫 Жижүүр багш (админы "Жижүүр багшийн хуваарь"-аас) -->
+<div id="dutyStrip" class="duty-strip" style="display:none;"></div>
+
 <div class="dashboard-grid">
 
   <!-- 1-р эгнээ: 1-р давхар, 3D, 2-р давхар харуулах үндсэн хэсэг -->
@@ -76,6 +79,7 @@
 
   <!-- 3-р эгнээ (Багана 1 - Анги сонгох хэсгийн доор): Хичээлийн хуваарь -->
   <div class="box box-angi-huvaari">
+    <div class="sticky-day-head">
     <div class="box-title" id="schedTitle">📋 Хичээлийн хуваарь</div>
     <div class="btn-group">
       <button class="tab-btn day-btn" onclick="changeDay('Даваа')">Даваа</button>
@@ -83,6 +87,7 @@
       <button class="tab-btn day-btn" onclick="changeDay('Лхагва')">Лхагва</button>
       <button class="tab-btn day-btn" onclick="changeDay('Пүрэв')">Пүрэв</button>
       <button class="tab-btn day-btn" onclick="changeDay('Баасан')">Баасан</button>
+    </div>
     </div>
     <div id="schedTableBox" style="overflow-x: auto;"></div>
   </div>

@@ -38,6 +38,7 @@
     <button type="button" class="tab-main" id="tabBtn_teachers" onclick="showTab('teachers')">👨‍🏫 Багшийн мэдээлэл</button>
     <button type="button" class="tab-main" id="tabBtn_import" onclick="showTab('import')">📥 Хуваарь татах (Excel)</button>
     <button type="button" class="tab-main" id="tabBtn_schedule_input" onclick="showTab('schedule_input')">📅 Хуваарь оруулах</button>
+    <button type="button" class="tab-main" id="tabBtn_duty" onclick="showTab('duty')">🧑‍🏫 Жижүүр багшийн хуваарь</button>
     <button type="button" class="tab-main" id="tabBtn_map" onclick="showTab('map')">📍 2D байршил</button>
   </div>
 
@@ -339,6 +340,46 @@
     <div class="card">
       <div class="card-title">📅 Багш нарын 7 хоногийн хуваарь оруулах/харах</div>
       <div id="adminScheduleTableContainer"></div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- ЦЭС: ЖИЖҮҮР БАГШИЙН ХУВААРЬ                           -->
+  <!-- ==================================================== -->
+  <div id="tab_duty" style="display: none;">
+    <div class="card">
+      <div class="card-title">
+        <span>🧑‍🏫 Жижүүр багшийн хуваарь</span>
+        <span id="dutyStatus" class="duty-status"></span>
+      </div>
+
+      <!-- Он сар (хуанлийн ажлын өдөр) сонгох -->
+      <div class="duty-toolbar">
+        <div><label for="dutyStart">Эхлэх өдөр</label><input type="date" id="dutyStart" onchange="dutyRangeChanged()"></div>
+        <div><label for="dutyEnd">Дуусах өдөр</label><input type="date" id="dutyEnd" onchange="dutyRangeChanged()"></div>
+        <button type="button" class="btn btn-secondary" onclick="dutyQuickRange('prev')">⬅️ Өмнөх сар</button>
+        <button type="button" class="btn btn-secondary" onclick="dutyQuickRange('this')">📆 Энэ сар</button>
+        <button type="button" class="btn btn-secondary" onclick="dutyQuickRange('next')">Дараагийн сар ➡️</button>
+        <span id="dutyRangeInfo" class="duty-info"></span>
+      </div>
+      <div class="duty-hint">
+        Ажлын өдрүүд (Да–Ба) автоматаар гарна. Баяр ёслол, амралтын өдрийг хасахын тулд хүснэгтийн өдрийн толгой (жишээ нь <b>X/12</b>) дээр дарна.
+        <b>Ү/ө</b> = 1-р ээлж, <b>Ү/х</b> = 2-р ээлж — нүдэн дээр дарж сонгоно.
+      </div>
+      <div id="dutyOffList" class="duty-off-list"></div>
+
+      <div id="dutyTableContainer"></div>
+
+      <!-- Багш (мөр) нэмэх -->
+      <div class="duty-actions">
+        <select id="dutyTeacherSelect"></select>
+        <button type="button" class="btn btn-primary" onclick="dutyAddTeacher()">➕ Багш нэмэх</button>
+        <button type="button" class="btn btn-secondary" onclick="dutyAddAllTeachers()">📋 Бүх багшийг нэмэх</button>
+        <span class="duty-actions-spacer"></span>
+        <button type="button" class="btn btn-excel" onclick="dutyExport()">⬇️ JSON татах</button>
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('dutyImportFile').click()">⬆️ JSON оруулах</button>
+        <input type="file" id="dutyImportFile" accept=".json,application/json" style="display:none" onchange="dutyImport(event)">
+      </div>
     </div>
   </div>
 

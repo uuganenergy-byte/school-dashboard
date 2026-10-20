@@ -368,6 +368,7 @@ function checkLiveTeacherStatus() {
   const now = new Date();
   const clockEl = document.getElementById('clock');
   if (clockEl) clockEl.innerText = now.toTimeString().split(' ')[0];
+  if (typeof updateDutyStrip === 'function') updateDutyStrip(now);
 
   const select = document.getElementById('kioskRoomSelect');
   if (!select) return;
@@ -1470,7 +1471,7 @@ function renderSvWeeklyDetail() {
     const isLastDay = dIndex === days.length - 1;
     const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
 
-    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 6px; font-size: 13px;">${escapeHtml(day)}</th>`;
+    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 0 6px; height: 30px; font-size: 13px;">${escapeHtml(day)}</th>`;
     
     for (let i = 1; i <= 2; i++) {
       for (let p = 1; p <= 7; p++) {
@@ -1481,7 +1482,7 @@ function renderSvWeeklyDetail() {
           subBorderRight = dayBorderRight;
         }
 
-        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 4px 2px;">${p}</th>`;
+        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 0 2px; height: 26px;">${p}</th>`;
       }
     }
   });
@@ -1517,14 +1518,14 @@ function renderSvWeeklyDetail() {
   box.innerHTML = `
     <div class="sv-summary" style="margin-bottom: 10px;">📅 <b>Бүх багш нарын 7 хоногийн нэгдсэн хуваарь</b></div>
     ${svLegendHtml()}
-    <div class="sv-table-wrap" style="overflow-x: auto;">
+    <div class="sv-table-wrap">
       <table class="sv-table" style="border-collapse: collapse; width: max-content; min-width: 100%;">
         <thead>
           <tr>
-            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; left: 0; z-index: 3;">Багш нар</th>
+            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; top: 0; left: 0; z-index: 6;">Багш нар</th>
             ${dayHeaderHtml}
           </tr>
-          <tr>
+          <tr class="sv-week-r2">
             ${subHeaderHtml}
           </tr>
         </thead>
@@ -1534,3 +1535,132 @@ function renderSvWeeklyDetail() {
       </table>
     </div>`;
 }
+
+// =====================================================================
+// 🧑‍🏫 ЖИЖҮҮР БАГШ (нүүр хуудасны толгойн доод тал)
+// Өгөгдөл: админы "Жижүүр багшийн хуваарь" (localStorage 'dutyScheduleV1')
+// Урд тал: өнөөдрийн 1-р / 2-р ээлжийн жижүүр. Ар тал: яг дараагийн жижүүр.
+// =====================================================================
+const DUTY_KEY = 'dutyScheduleV1';
+const DUTY_WEEKDAYS = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба'];
+const DUTY_FLIP_MS = 6000;
+let dutySig = '';
+let dutyFlipped = false;
+
+function dutyFmt(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function dutyNorm(s) {
+  const map = { A:'А', B:'В', C:'С', E:'Е', H:'Н', K:'К', M:'М', O:'О', P:'Р', T:'Т', X:'Х', Y:'У' };
+  return String(s || '').replace(/[\s.]+/g, '').toUpperCase().replace(/[ABCEHKMOPTXY]/g, ch => map[ch]);
+}
+
+function dutyLoadData() {
+  let raw = '';
+  try { raw = localStorage.getItem(DUTY_KEY) || ''; } catch (e) { /* хандах эрхгүй */ }
+  if (!raw) return { raw: '', byShift: { 1: {}, 2: {} } };
+  const byShift = { 1: {}, 2: {} };
+  try {
+    const st = JSON.parse(raw);
+    const order = Array.isArray(st.teachers) ? st.teachers : [];
+    const off = new Set(Array.isArray(st.off) ? st.off : []);
+    Object.keys(st.checks || {}).forEach(k => {
+      if (!st.checks[k]) return;
+      const [date, name, shift] = k.split('|');
+      if ((shift !== '1' && shift !== '2') || !date || !name || off.has(date)) return;
+      (byShift[shift][date] = byShift[shift][date] || []).push(name);
+    });
+    // Админ дахь мөрийн дарааллаар эрэмбэлнэ
+    [1, 2].forEach(s => Object.keys(byShift[s]).forEach(d => {
+      byShift[s][d].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    }));
+  } catch (e) { console.warn('Жижүүрийн хуваарь уншиж чадсангүй:', e); }
+  return { raw, byShift };
+}
+
+function dutyNextEntry(byShift, shift, today) {
+  const dates = Object.keys(byShift[shift]).filter(d => d > today).sort();
+  return dates.length ? { date: dates[0], names: byShift[shift][dates[0]] } : null;
+}
+
+function dutyShortDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return `${m}/${d} ${DUTY_WEEKDAYS[new Date(y, m - 1, d).getDay()]}`;
+}
+
+function dutyPeopleHtml(names) {
+  if (!names || !names.length) return '<span class="duty-none">— жижүүргүй —</span>';
+  const byNorm = new Map();
+  (teachersData || []).forEach(t => { if (t && t.name) byNorm.set(dutyNorm(t.name), t); });
+  return names.map(n => {
+    const t = byNorm.get(dutyNorm(n));
+    const src = (t && t.image) || AVATAR_FALLBACK;
+    return `<span class="duty-person"><img src="${escapeHtml(src)}" alt="" onerror="this.onerror=null;this.src=AVATAR_FALLBACK"><span class="duty-pname">${escapeHtml(n)}</span></span>`;
+  }).join('');
+}
+
+function updateDutyStrip(now) {
+  const box = document.getElementById('dutyStrip');
+  if (!box) return;
+
+  const data = dutyLoadData();
+  const today = dutyFmt(now);
+  const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
+  const activeShift = (now.getHours() * 60 + now.getMinutes()) < (13 * 60 + 30) ? 1 : 2;
+
+  const sig = [today, activeShift, data.raw, roomsVersion, (teachersData || []).length].join('|');
+  if (sig === dutySig) return;
+  dutySig = sig;
+
+  if (!data.raw) { box.style.display = 'none'; return; }
+  box.style.display = 'flex';
+
+  const card = shift => {
+    const todayNames = data.byShift[shift][today] || [];
+    const next = dutyNextEntry(data.byShift, shift, today);
+    const isActive = isWeekday && shift === activeShift;
+    return `
+      <div class="duty-card shift-${shift}${isActive ? ' is-active' : ''}${dutyFlipped ? ' flipped' : ''}" title="Дарвал дараагийн жижүүр рүү эргэнэ">
+        <div class="duty-card-inner">
+          <div class="duty-face duty-front">
+            <div class="duty-label"><b>${shift}-р ээлж</b><small>Өнөөдөр</small></div>
+            <div class="duty-people">${dutyPeopleHtml(todayNames)}</div>
+          </div>
+          <div class="duty-face duty-back">
+            <div class="duty-label"><b>${shift}-р ээлж</b><small>Дараагийн · ${next ? escapeHtml(dutyShortDate(next.date)) : '—'}</small></div>
+            <div class="duty-people">${dutyPeopleHtml(next ? next.names : [])}</div>
+          </div>
+        </div>
+      </div>`;
+  };
+
+  const title = `${now.getMonth() + 1}-р сарын ${now.getDate()} · ${DUTY_WEEKDAYS[now.getDay()]}`;
+  box.innerHTML = `
+    <div class="duty-strip-title">🧑‍🏫 Жижүүр багш<small>${escapeHtml(title)}</small></div>
+    <div class="duty-cards">${card(1)}${card(2)}</div>`;
+}
+
+(function initDutyStrip() {
+  const box = document.getElementById('dutyStrip');
+  if (!box) return;
+
+  const flipAll = () => {
+    document.querySelectorAll('#dutyStrip .duty-card').forEach(c => c.classList.toggle('flipped', dutyFlipped));
+  };
+
+  // Автоматаар эргэнэ (урд ↔ ар)
+  setInterval(() => { dutyFlipped = !dutyFlipped; flipAll(); }, DUTY_FLIP_MS);
+
+  // Дарвал гараар эргүүлнэ
+  box.addEventListener('click', e => {
+    if (!e.target.closest('.duty-card')) return;
+    dutyFlipped = !dutyFlipped;
+    flipAll();
+  });
+
+  // Админ өөр табд өөрчлөлт хийвэл шууд шинэчилнэ
+  window.addEventListener('storage', e => { if (e.key === DUTY_KEY) dutySig = ''; });
+
+  updateDutyStrip(new Date());
+})();

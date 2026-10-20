@@ -489,7 +489,7 @@ header.header-3col .header-right {
 .sv-badge.busy { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; }
 .sv-badge.free { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; }
 
-.sv-table-wrap { overflow-x: auto; border: 1px solid #334155; border-radius: 8px; }
+.sv-table-wrap { overflow: auto; max-height: calc(100vh - 130px); border: 1px solid #334155; border-radius: 8px; }
 .sv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sv-table th, .sv-table td { border: 1px solid #334155; padding: 8px 6px; text-align: center; }
 .sv-table th { background: #0f172a; color: #38bdf8; font-size: 12px; }
@@ -582,3 +582,124 @@ table.mini-table td.sv-elective { font-weight: bold; }
 .sv-legend-box { display: inline-block; width: 14px; height: 14px; border-radius: 3px; background: #facc15; }
 /* Админ: хуваарь оруулах талбар дахь сонгон судлах хичээл */
 .sched-input-cell.is-elective { background: #facc15 !important; color: #1e293b !important; font-weight: bold; }
+
+/* ================= FREEZE: ГАРАГИЙН (ТОЛГОЙ) ХЭСЭГ ГҮЙХГҮЙ ================= */
+/* Нүүр хуудас: "Хичээлийн хуваарь" гарчиг + Даваа...Баасан товчнууд */
+.sticky-day-head {
+  position: sticky; top: 0; z-index: 10;
+  background: #1e293b; padding-top: 2px;
+}
+
+/* Хуваарь харах + 7 хоногоор харах: хүснэгтийн толгой (Даваа, Мягмар... / цаг) */
+.sv-table thead th {
+  position: sticky; top: 0; z-index: 3;
+  box-shadow: inset 0 -1px 0 #334155;
+}
+.sv-day-table thead .sv-name-col { top: 0; left: 0; z-index: 5; }
+
+/* 7 хоногоор харах: 2 мөрт толгой (1-р мөр: гараг, 2-р мөр: цаг) */
+.sv-table thead tr.sv-week-r2 th { top: 29px; }
+
+
+/* ================= АДМИН: ЖИЖҮҮР БАГШИЙН ХУВААРЬ ================= */
+.duty-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 8px; }
+.duty-toolbar input[type="date"] {
+  padding: 8px 10px; border-radius: 6px; background: #0f172a; border: 1px solid #334155;
+  color: #fff; font-size: 13px; outline: none; color-scheme: dark;
+}
+.duty-toolbar input[type="date"]:focus { border-color: #38bdf8; }
+.duty-toolbar .btn { height: 36px; }
+.duty-info { color: #fbbf24; font-size: 13px; font-weight: bold; align-self: center; }
+.duty-hint { font-size: 12px; color: #94a3b8; margin-bottom: 8px; line-height: 1.5; }
+.duty-status { font-size: 12px; font-weight: normal; }
+.duty-off-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 12px; color: #94a3b8; }
+.duty-chip {
+  background: #334155; color: #fca5a5; border: 1px solid #475569; border-radius: 14px;
+  padding: 3px 10px; font-size: 12px; cursor: pointer;
+}
+.duty-chip:hover { border-color: #ef4444; }
+
+.duty-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+.duty-actions select { width: 260px; margin-bottom: 0; }
+.duty-actions-spacer { flex: 1; }
+
+/* Хүснэгт: зурагт өгсөн загвар (цагаан дэвсгэр, шар/ягаан толгой, хар нүд) */
+.duty-wrap { overflow: auto; max-height: 70vh; border: 1px solid #334155; border-radius: 6px; background: #fff; }
+table.duty-table { border-collapse: separate; border-spacing: 0; font-size: 11px; color: #000; background: #fff; width: max-content; }
+.duty-table th, .duty-table td {
+  border-right: 1px solid #8a8a8a; border-bottom: 1px solid #8a8a8a;
+  padding: 0; text-align: center; background: #fff; color: #000;
+}
+.duty-table .duty-day-start { border-left: 2px solid #000; }
+
+/* Толгой (freeze): 1-р мөр сар, 2-р мөр өдөр, 3-р мөр Ү/ө · Ү/х */
+.duty-table thead th { position: sticky; z-index: 3; font-weight: bold; }
+.duty-table tr.duty-r1 th { top: 0; height: 28px; font-size: 13px; }
+.duty-table tr.duty-r2 th { top: 28px; height: 24px; background: #ffff00; cursor: pointer; }
+.duty-table tr.duty-r2 th:hover { background: #fde047; box-shadow: inset 0 0 0 2px #ef4444; }
+.duty-table tr.duty-r3 th { top: 52px; height: 22px; background: #f8cbad; font-size: 9px; min-width: 22px; }
+.duty-table .duty-month { background: #fff; }
+
+/* № болон нэрийн багана (freeze) */
+.duty-table .duty-no { position: sticky; left: 0; z-index: 2; width: 34px; min-width: 34px; max-width: 34px; font-size: 12px; }
+.duty-table .duty-name { position: sticky; left: 34px; z-index: 2; width: 160px; min-width: 160px; max-width: 160px; text-align: left; padding: 0 6px; font-size: 12px; }
+.duty-table thead th.duty-no, .duty-table thead th.duty-name { z-index: 6; top: 0; font-size: 13px; text-align: center; }
+.duty-table thead th.duty-no { background: #fff; }
+.duty-table thead th.duty-name { background: #fff; }
+.duty-table tbody td.duty-name { display: table-cell; height: 22px; white-space: nowrap; }
+.duty-name-text { display: inline-block; max-width: 125px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.duty-del {
+  float: right; margin-top: 3px; background: transparent; border: none; color: #b91c1c;
+  font-size: 11px; cursor: pointer; padding: 2px 4px; opacity: 0.35; line-height: 1;
+}
+.duty-table tbody tr:hover .duty-del { opacity: 1; }
+.duty-table tbody tr:hover td.duty-no, .duty-table tbody tr:hover td.duty-name { background: #e0f2fe; }
+
+/* Нүд: сонгоход бүхэлдээ хар болно */
+.duty-table td.duty-cell { width: 22px; min-width: 22px; height: 22px; }
+input.duty-chk {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 22px;
+  margin: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer;
+}
+input.duty-chk:hover { background: rgba(2, 132, 199, 0.28); }
+input.duty-chk:checked { background: #000; }
+input.duty-chk:checked:hover { background: #334155; }
+input.duty-chk:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px; }
+
+
+/* ================= НҮҮР: ЖИЖҮҮР БАГШ (толгойн доор) ================= */
+.duty-strip {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+  padding: 6px 14px; margin: -8px 0 15px;
+}
+.duty-strip-title { font-size: 13px; font-weight: bold; color: #38bdf8; line-height: 1.2; white-space: nowrap; }
+.duty-strip-title small { display: block; font-size: 11px; font-weight: normal; color: #94a3b8; }
+.duty-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.duty-card { perspective: 700px; width: 360px; max-width: 100%; height: 44px; cursor: pointer; }
+.duty-card-inner {
+  position: relative; width: 100%; height: 100%;
+  transition: transform 0.7s; transform-style: preserve-3d;
+}
+.duty-card.flipped .duty-card-inner { transform: rotateX(180deg); }
+.duty-face {
+  position: absolute; inset: 0; display: flex; align-items: center; gap: 10px;
+  background: #0f172a; border: 1px solid #334155; border-left: 4px solid #fbbf24;
+  border-radius: 8px; padding: 0 10px; overflow: hidden;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+.duty-back { transform: rotateX(180deg); background: #172033; }
+.duty-card.shift-2 .duty-face { border-left-color: #a78bfa; }
+.duty-card.is-active .duty-face { box-shadow: 0 0 0 1px #22c55e inset; }
+
+.duty-label { display: flex; flex-direction: column; line-height: 1.15; flex-shrink: 0; min-width: 74px; }
+.duty-label b { font-size: 12px; color: #f8fafc; }
+.duty-label small { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+.duty-back .duty-label small { color: #fbbf24; }
+
+.duty-people { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+.duty-person { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.duty-person img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #334155; }
+.duty-pname { font-size: 12px; font-weight: bold; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duty-none { font-size: 11px; color: #64748b; }

@@ -144,7 +144,7 @@ function checkAuth() {
 
 // ================= ЦЭС (ТАБ) СОЛИХ =================
 function showTab(name) {
-  ['rooms', 'teachers', 'import', 'schedule_input', 'map'].forEach(n => {
+  ['rooms', 'teachers', 'import', 'schedule_input', 'duty', 'map'].forEach(n => {
     const box = document.getElementById('tab_' + n);
     const btn = document.getElementById('tabBtn_' + n);
     if (box) box.style.display = (n === name) ? 'block' : 'none';
@@ -153,6 +153,10 @@ function showTab(name) {
 
   if (name === 'schedule_input') {
     renderAdminScheduleInput();
+  }
+
+  if (name === 'duty' && typeof window.renderDutySchedule === 'function') {
+    window.renderDutySchedule();
   }
 }
 window.showTab = showTab;
@@ -1261,7 +1265,7 @@ function renderAdminScheduleInput() {
     const isLastDay = dIndex === days.length - 1;
     const dayBorderRight = isLastDay ? '1px solid #334155' : '3px solid #38bdf8';
 
-    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 6px; font-size: 13px;">${escapeHtmlAdmin(day)}</th>`;
+    dayHeaderHtml += `<th colspan="14" style="border: 1px solid #334155; border-right: ${dayBorderRight}; background: #0f172a; color: #38bdf8; text-align: center; padding: 0 6px; height: 30px; font-size: 13px; position: sticky; top: 0; z-index: 3; box-shadow: inset 0 -1px 0 #334155;">${escapeHtmlAdmin(day)}</th>`;
     
     for (let i = 1; i <= 2; i++) {
       for (let p = 1; p <= 7; p++) {
@@ -1269,7 +1273,7 @@ function renderAdminScheduleInput() {
         if (p === 7 && i === 1) subBorderRight = '2px solid #64748b';
         else if (p === 7 && i === 2) subBorderRight = dayBorderRight;
 
-        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 4px 2px;">${p}</th>`;
+        subHeaderHtml += `<th style="border: 1px solid #334155; border-right: ${subBorderRight}; background: #1e293b; color: #38bdf8; text-align: center; width: 30px; font-size: 10px; padding: 0 2px; height: 26px; position: sticky; top: 29px; z-index: 3; box-shadow: inset 0 -1px 0 #334155;">${p}</th>`;
       }
     }
   });
@@ -1326,7 +1330,7 @@ function renderAdminScheduleInput() {
       <table class="admin-table" style="border-collapse: collapse; width: max-content; min-width: 100%;">
         <thead>
           <tr>
-            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; left: 0; z-index: 3;">Багш нар</th>
+            <th rowspan="2" style="border: 1px solid #334155; border-right: 3px solid #38bdf8; background: #0f172a; color: #38bdf8; vertical-align: middle; text-align: center; padding: 8px; position: sticky; top: 0; left: 0; z-index: 6;">Багш нар</th>
             ${dayHeaderHtml}
           </tr>
           <tr>
@@ -1414,3 +1418,308 @@ async function saveAllAdminSchedules() {
   }
 }
 window.saveAllAdminSchedules = saveAllAdminSchedules;
+
+// =====================================================================
+// 🧑‍🏫 ЖИЖҮҮР БАГШИЙН ХУВААРЬ
+// ---------------------------------------------------------------------
+// - Багшийн нэр: дээрх ORDER (window.TEACHER_ORDER_LIST) хатуу жагсаалтаас сонгоно.
+// - Хугацаа: эхлэх/дуусах огнооны хоорондох ажлын өдрүүд (Да–Ба), амралтаар хасаж болно.
+// - Ү/ө = 1-р ээлж, Ү/х = 2-р ээлж (checkbox).
+// - Хадгалалт: энэ хөтөч (localStorage). Өөр компьютерт зөөх бол "JSON татах/оруулах".
+// =====================================================================
+(function () {
+  const STORE_KEY = 'dutyScheduleV1';
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  const MAX_SPAN_DAYS = 92; // хамгийн ихдээ ~3 сарын хугацаа
+
+  // teachers: ["Г.Одмаа", ...] | checks: { "YYYY-MM-DD|Нэр|1": true } | off: ["YYYY-MM-DD", ...]
+  let state = { teachers: [], checks: {}, off: [], start: '', end: '' };
+
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
+  const isDateStr = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+  const $ = id => document.getElementById(id);
+
+  function sanitize(o) {
+    const out = { teachers: [], checks: {}, off: [], start: '', end: '' };
+    if (o && Array.isArray(o.teachers)) out.teachers = [...new Set(o.teachers.map(String))];
+    if (o && o.checks && typeof o.checks === 'object') {
+      Object.keys(o.checks).forEach(k => { if (o.checks[k]) out.checks[k] = true; });
+    }
+    if (o && Array.isArray(o.off)) out.off = o.off.filter(isDateStr);
+    if (o && isDateStr(o.start)) out.start = o.start;
+    if (o && isDateStr(o.end)) out.end = o.end;
+    return out;
+  }
+
+  function setStatus(msg, bad) {
+    const el = $('dutyStatus');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.style.color = bad ? '#fca5a5' : '#86efac';
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw) state = sanitize(JSON.parse(raw));
+    } catch (e) { console.warn('Жижүүрийн хуваарь уншиж чадсангүй:', e); }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      setStatus('✅ Автоматаар хадгалагдлаа');
+    } catch (e) {
+      console.error(e);
+      setStatus('⚠️ Хадгалж чадсангүй', true);
+    }
+  }
+
+  function monthRange(base) {
+    const first = new Date(base.getFullYear(), base.getMonth(), 1);
+    const last = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+    return { start: fmt(first), end: fmt(last) };
+  }
+
+  // Ажлын өдрүүд (Да–Ба), амралтаар хассан өдрийг оруулахгүй
+  function workingDays() {
+    if (!isDateStr(state.start) || !isDateStr(state.end)) return [];
+    const days = [];
+    const end = parse(state.end);
+    for (let d = parse(state.start), n = 0; d <= end && n <= MAX_SPAN_DAYS; d.setDate(d.getDate() + 1), n++) {
+      const wd = d.getDay();
+      if (wd === 0 || wd === 6) continue;
+      const key = fmt(d);
+      if (state.off.includes(key)) continue;
+      days.push({ key, m: d.getMonth(), d: d.getDate(), y: d.getFullYear() });
+    }
+    return days;
+  }
+
+  function dayLabel(x) { return `${ROMAN[x.m]}/${x.d}`; }
+
+  function renderTable() {
+    const box = $('dutyTableContainer');
+    if (!box) return;
+    const days = workingDays();
+    const info = $('dutyRangeInfo');
+    if (info) info.textContent = days.length ? `📅 ${days.length} ажлын өдөр` : '';
+
+    if (!days.length) {
+      box.innerHTML = '<div class="admin-empty">Сонгосон хугацаанд ажлын өдөр алга байна.</div>';
+      return;
+    }
+
+    // Сарын бүлэг (толгойн 1-р мөр)
+    const multiYear = days[0].y !== days[days.length - 1].y;
+    const groups = [];
+    days.forEach(x => {
+      const g = groups[groups.length - 1];
+      if (g && g.m === x.m && g.y === x.y) g.n++;
+      else groups.push({ m: x.m, y: x.y, n: 1 });
+    });
+    const monthTh = groups.map(g =>
+      `<th colspan="${g.n * 2}" class="duty-month duty-day-start">${multiYear ? g.y + ' · ' : ''}${g.m + 1}-р сар</th>`).join('');
+    const dayTh = days.map(x =>
+      `<th colspan="2" class="duty-day duty-day-start" data-date="${x.key}" title="Дарвал амралтын өдөр болгож хасна">${dayLabel(x)}</th>`).join('');
+    const subTh = days.map(() =>
+      '<th class="duty-sub duty-day-start">Ү/ө</th><th class="duty-sub">Ү/х</th>').join('');
+
+    const rows = state.teachers.map((name, i) => {
+      const cells = days.map(x => [1, 2].map(s => {
+        const on = !!state.checks[`${x.key}|${name}|${s}`];
+        return `<td class="duty-cell${s === 1 ? ' duty-day-start' : ''}"><input type="checkbox" class="duty-chk" data-t="${i}" data-date="${x.key}" data-s="${s}"${on ? ' checked' : ''} title="${escapeHtmlAdmin(name)} · ${dayLabel(x)} · ${s === 1 ? '1-р ээлж (Ү/ө)' : '2-р ээлж (Ү/х)'}"></td>`;
+      }).join('')).join('');
+      return `<tr>
+        <td class="duty-no">${i + 1}</td>
+        <td class="duty-name"><span class="duty-name-text">${escapeHtmlAdmin(name)}</span><button type="button" class="duty-del" data-del="${i}" title="Мөрийг хасах">✕</button></td>
+        ${cells}
+      </tr>`;
+    }).join('');
+
+    box.innerHTML = `
+      <div class="duty-wrap" id="dutyWrap">
+        <table class="duty-table">
+          <thead>
+            <tr class="duty-r1"><th rowspan="3" class="duty-no">№</th><th rowspan="3" class="duty-name">Багш нарын нэрс</th>${monthTh}</tr>
+            <tr class="duty-r2">${dayTh}</tr>
+            <tr class="duty-r3">${subTh}</tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${state.teachers.length ? '' : '<div class="admin-empty">Багш нэмээгүй байна. Доорх жагсаалтаас багш сонгоод "➕ Багш нэмэх" дарна уу.</div>'}`;
+
+    bindTableEvents(box);
+  }
+
+  function bindTableEvents(box) {
+    if (box.dataset.bound) return;
+    box.dataset.bound = '1';
+
+    box.addEventListener('change', e => {
+      const t = e.target;
+      if (!t.classList || !t.classList.contains('duty-chk')) return;
+      const name = state.teachers[Number(t.dataset.t)];
+      if (name === undefined) return;
+      const key = `${t.dataset.date}|${name}|${t.dataset.s}`;
+      if (t.checked) state.checks[key] = true; else delete state.checks[key];
+      save();
+    });
+
+    box.addEventListener('click', e => {
+      const del = e.target.closest && e.target.closest('.duty-del');
+      if (del) {
+        const idx = Number(del.dataset.del);
+        const name = state.teachers[idx];
+        if (name === undefined) return;
+        if (!confirm(`"${name}" багшийн мөрийг (тэмдэглэгээтэй нь хамт) хасах уу?`)) return;
+        state.teachers.splice(idx, 1);
+        Object.keys(state.checks).forEach(k => { if (k.split('|')[1] === name) delete state.checks[k]; });
+        save();
+        renderTable();
+        renderTeacherSelect();
+        return;
+      }
+      const th = e.target.closest && e.target.closest('th.duty-day');
+      if (th && th.dataset.date) {
+        if (!state.off.includes(th.dataset.date)) state.off.push(th.dataset.date);
+        save();
+        renderOffList();
+        renderTable();
+      }
+    });
+  }
+
+  function renderOffList() {
+    const box = $('dutyOffList');
+    if (!box) return;
+    const inRange = state.off.filter(d => d >= state.start && d <= state.end).sort();
+    if (!inRange.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<span class="duty-off-title">Амралтаар хассан өдөр:</span> ' + inRange.map(d => {
+      const dt = parse(d);
+      return `<button type="button" class="duty-chip" data-restore="${d}" title="Буцаах">${ROMAN[dt.getMonth()]}/${dt.getDate()} ✕</button>`;
+    }).join('');
+    box.querySelectorAll('[data-restore]').forEach(b => {
+      b.onclick = () => {
+        state.off = state.off.filter(x => x !== b.dataset.restore);
+        save();
+        renderOffList();
+        renderTable();
+      };
+    });
+  }
+
+  function renderTeacherSelect() {
+    const sel = $('dutyTeacherSelect');
+    if (!sel) return;
+    const list = (window.TEACHER_ORDER_LIST || []).filter(n => !state.teachers.includes(n));
+    sel.innerHTML = list.length
+      ? '<option value="">-- Багш сонгох --</option>' + list.map(n => `<option value="${escapeHtmlAdmin(n)}">${escapeHtmlAdmin(n)}</option>`).join('')
+      : '<option value="">(Бүх багш нэмэгдсэн)</option>';
+  }
+
+  function syncInputs() {
+    if ($('dutyStart')) $('dutyStart').value = state.start;
+    if ($('dutyEnd')) $('dutyEnd').value = state.end;
+  }
+
+  window.renderDutySchedule = function () {
+    load();
+    if (!isDateStr(state.start) || !isDateStr(state.end)) {
+      Object.assign(state, monthRange(new Date()));
+    }
+    syncInputs();
+    renderTeacherSelect();
+    renderOffList();
+    renderTable();
+  };
+
+  window.dutyRangeChanged = function () {
+    let s = $('dutyStart').value;
+    let e = $('dutyEnd').value;
+    if (!isDateStr(s) || !isDateStr(e)) return;
+    if (s > e) [s, e] = [e, s];
+    const limit = parse(s); limit.setDate(limit.getDate() + MAX_SPAN_DAYS);
+    if (parse(e) > limit) {
+      e = fmt(limit);
+      setStatus(`⚠️ Хугацаа хамгийн ихдээ ${MAX_SPAN_DAYS} өдөр`, true);
+    }
+    state.start = s; state.end = e;
+    syncInputs();
+    save();
+    renderOffList();
+    renderTable();
+  };
+
+  window.dutyQuickRange = function (kind) {
+    let base = new Date();
+    if (kind !== 'this' && isDateStr(state.start)) {
+      base = parse(state.start);
+      base = new Date(base.getFullYear(), base.getMonth() + (kind === 'next' ? 1 : -1), 1);
+    }
+    Object.assign(state, monthRange(base));
+    syncInputs();
+    save();
+    renderOffList();
+    renderTable();
+  };
+
+  window.dutyAddTeacher = function () {
+    const sel = $('dutyTeacherSelect');
+    const name = sel && sel.value;
+    if (!name) { alert('⚠️ Жагсаалтаас багш сонгоно уу.'); return; }
+    if (!state.teachers.includes(name)) state.teachers.push(name);
+    save();
+    renderTable();
+    renderTeacherSelect();
+    const wrap = $('dutyWrap');
+    if (wrap) wrap.scrollTop = wrap.scrollHeight;
+  };
+
+  window.dutyAddAllTeachers = function () {
+    const missing = (window.TEACHER_ORDER_LIST || []).filter(n => !state.teachers.includes(n));
+    if (!missing.length) return;
+    if (!confirm(`Жагсаалтад байгаа ${missing.length} багшийг бүгдийг нь доор нэмэх үү?`)) return;
+    state.teachers.push(...missing);
+    save();
+    renderTable();
+    renderTeacherSelect();
+  };
+
+  window.dutyExport = function () {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `jijuur-huvaari-${state.start || 'all'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  window.dutyImport = function (ev) {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = sanitize(JSON.parse(reader.result));
+        if (!confirm('Одоогийн жижүүрийн хуваарийг оруулж буй файлаар СОЛИХ уу?')) return;
+        state = data;
+        if (!isDateStr(state.start) || !isDateStr(state.end)) Object.assign(state, monthRange(new Date()));
+        save();
+        syncInputs();
+        renderTeacherSelect();
+        renderOffList();
+        renderTable();
+      } catch (e) {
+        alert('⚠️ JSON файл уншиж чадсангүй.');
+      }
+    };
+    reader.readAsText(file);
+  };
+})();
