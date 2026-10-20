@@ -459,6 +459,18 @@ const AVATAR_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   '<circle cx="20" cy="15" r="7" fill="#cbd5e1"/><path d="M6 36c2-9 9-12 14-12s12 3 14 12z" fill="#cbd5e1"/></svg>'
 );
 
+// 111 тоот кабинетыг хариуцсан багш нар (нэрний хэсгээр таних, жижиг үсгээр).
+// Эдгээр багш өөр багштай кабинет (эсвэл анги) давхцвал 2D зураг дээр 111-д гарна.
+const ROOM_111_OWNERS = ['мөнхтайван', 'оюунсүх', 'мөнгөнбаясгалан'];
+// true бол кабинет давхцахаас гадна ижил анги давхцсан ч 111 руу шилжинэ (өмнөх Мөнхтайванын дүрэм шиг).
+// Зөвхөн кабинет давхцалд хязгаарлах бол false болгоно.
+const ROOM_111_CONFLICT_BY_CLASS = true;
+
+function isRoom111Owner(teacher) {
+  const n = String((teacher && teacher.name) || '').toLowerCase();
+  return ROOM_111_OWNERS.some(k => n.includes(k));
+}
+
 function updateLiveMapMarkers(now) {
   const floor1Container = document.getElementById('floor1Markers');
   const floor2Container = document.getElementById('floor2Markers');
@@ -498,7 +510,8 @@ function updateLiveMapMarkers(now) {
     const tName = (teacher.name || '').toLowerCase();
     const isSpecialTeacher = tName.includes('доржпүрэв') || tName.includes('ууганбаяр') || tName.includes('отгонбат') || tName.includes('наранзул');
     const isByambadorj = tName.includes('бямбадорж');
-	const isMunkhtaivan = tName.includes('мөнхтайван');
+    const isRoom111Teacher = isRoom111Owner(teacher);
+    let movedTo111 = false;
 
     if (isByambadorj) {
       const byambadorjTokens = svClassTokens(lesson);
@@ -521,26 +534,36 @@ function updateLiveMapMarkers(now) {
       }
     }
 
-if (isMunkhtaivan) {
-  const otgon = teachersData.find(o => o && o.name && o.name.toLowerCase().includes('отгонбат'));
-  const oInfo = otgon ? getCurrentLessonInfo(otgon.schedule, curDay, curTimeStr) : null;
-  if (oInfo) {
-    const oRooms = findRoomsForLesson(oInfo.text).map(m => String(m.room.roomNumber));
-    const oTokens = svClassTokens(oInfo.text);
-    const myTokens = svClassTokens(lesson);
-    const sameClass = myTokens.some(tok => oTokens.includes(tok));
-    const sameRoom = targetRooms.some(tr => oRooms.includes(String(tr.room.roomNumber)));
-    if (sameClass || sameRoom) {
-      const room111 = roomsData.find(r =>
-        String(r.roomNumber) === '111' || String(r.roomNumber).toUpperCase() === 'Д111');
-      if (room111 && room111.coords && typeof room111.coords.x === 'number') {
-        targetRooms = [{ room: room111, group: '' }];
+    if (isRoom111Teacher) {
+      const myTokens = svClassTokens(lesson);
+      const myRooms = targetRooms.map(tr => String(tr.room.roomNumber));
+      let hasConflict = false;
+
+      teachersData.forEach(other => {
+        if (hasConflict) return;
+        if (!other || other === teacher || !other.name) return;
+        const oInfo = getCurrentLessonInfo(other.schedule, curDay, curTimeStr);
+        if (!oInfo) return;
+
+        const oRooms = findRoomsForLesson(oInfo.text).map(m => String(m.room.roomNumber));
+        const sameRoom = myRooms.some(r => oRooms.includes(r));
+        const sameClass = ROOM_111_CONFLICT_BY_CLASS &&
+          svClassTokens(oInfo.text).some(tok => myTokens.includes(tok));
+
+        if (sameRoom || sameClass) hasConflict = true;
+      });
+
+      if (hasConflict) {
+        const room111 = roomsData.find(r =>
+          String(r.roomNumber) === '111' || String(r.roomNumber).toUpperCase() === 'Д111');
+        if (room111 && room111.coords && typeof room111.coords.x === 'number') {
+          targetRooms = [{ room: room111, group: '' }];
+          movedTo111 = true;
+        }
       }
     }
-  }
-}
 
-    if (!isSpecialTeacher && !isByambadorj && targetRooms.some(tr => specialActiveRooms.has(String(tr.room.roomNumber)))) {
+    if (!isSpecialTeacher && !isByambadorj && !movedTo111 && targetRooms.some(tr => specialActiveRooms.has(String(tr.room.roomNumber)))) {
       const room108 = roomsData.find(r => String(r.roomNumber) === '108' || String(r.roomNumber).toUpperCase() === 'Д108');
       if (room108) {
         targetRooms = [{ room: room108, group: '' }];
