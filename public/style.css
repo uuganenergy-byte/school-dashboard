@@ -667,42 +667,33 @@ input.duty-chk:checked:hover { background: #334155; }
 input.duty-chk:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px; }
 
 
-/* ================= НҮҮР: ЖИЖҮҮР БАГШ (толгойн доор) ================= */
+/* ================= НҮҮР: ЖИЖҮҮР БАГШ (толгойн доор, нэг мөр) ================= */
 .duty-strip {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   background: #1e293b; border: 1px solid #334155; border-radius: 10px;
   padding: 6px 14px; margin: -8px 0 15px;
 }
-.duty-strip-title { font-size: 13px; font-weight: bold; color: #38bdf8; line-height: 1.2; white-space: nowrap; }
-.duty-strip-title small { display: block; font-size: 11px; font-weight: normal; color: #94a3b8; }
-.duty-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+.duty-strip-title { font-size: 13px; font-weight: bold; color: #38bdf8; white-space: nowrap; }
+.duty-day { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.duty-day-label { display: flex; flex-direction: column; line-height: 1.15; min-width: 66px; }
+.duty-day-label b { font-size: 12px; color: #f8fafc; }
+.duty-day-label small { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+.duty-sep { width: 1px; align-self: stretch; background: #475569; margin: 2px 2px; }
 
-.duty-card { perspective: 700px; width: 360px; max-width: 100%; height: 44px; cursor: pointer; }
-.duty-card-inner {
-  position: relative; width: 100%; height: 100%;
-  transition: transform 0.7s; transform-style: preserve-3d;
-}
-.duty-card.flipped .duty-card-inner { transform: rotateX(180deg); }
-.duty-face {
-  position: absolute; inset: 0; display: flex; align-items: center; gap: 10px;
+.duty-shift {
+  display: flex; align-items: center; gap: 7px; min-height: 36px;
   background: #0f172a; border: 1px solid #334155; border-left: 4px solid #fbbf24;
-  border-radius: 8px; padding: 0 10px; overflow: hidden;
-  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  border-radius: 8px; padding: 3px 9px;
 }
-.duty-back { transform: rotateX(180deg); background: #172033; }
-.duty-card.shift-2 .duty-face { border-left-color: #a78bfa; }
-.duty-card.is-active .duty-face { box-shadow: 0 0 0 1px #22c55e inset; }
+.duty-shift.shift-2 { border-left-color: #a78bfa; }
+.duty-shift.is-active { box-shadow: 0 0 0 1px #22c55e inset; }
+.duty-shift-tag { font-size: 11px; font-weight: bold; color: #cbd5e1; white-space: nowrap; }
 
-.duty-label { display: flex; flex-direction: column; line-height: 1.15; flex-shrink: 0; min-width: 74px; }
-.duty-label b { font-size: 12px; color: #f8fafc; }
-.duty-label small { font-size: 10px; color: #94a3b8; white-space: nowrap; }
-.duty-back .duty-label small { color: #fbbf24; }
-
-.duty-people { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+.duty-people { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .duty-person { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
-.duty-person img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #334155; }
-.duty-pname { font-size: 12px; font-weight: bold; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.duty-none { font-size: 11px; color: #64748b; }
+.duty-person img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #334155; }
+.duty-pname { font-size: 12px; font-weight: bold; color: #e2e8f0; white-space: nowrap; }
+.duty-none { font-size: 12px; color: #64748b; }
 
 /* Оношилгоо: index.html?debug=1 */
 .duty-debug { font-size: 11px; color: #fde68a; background: #422006; border: 1px dashed #a16207; border-radius: 6px; padding: 4px 8px; }

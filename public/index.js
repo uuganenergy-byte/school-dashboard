@@ -1537,22 +1537,19 @@ function renderSvWeeklyDetail() {
 }
 
 // =====================================================================
-// 🧑‍🏫 ЖИЖҮҮР БАГШ (нүүр хуудасны толгойн доод тал)
-// Өгөгдөл: админы "Жижүүр багшийн хуваарь" (localStorage 'dutyScheduleV1')
-// Урд тал: өнөөдрийн 1-р / 2-р ээлжийн жижүүр. Ар тал: яг дараагийн жижүүр.
+// 🧑‍🏫 ЖИЖҮҮР БАГШ (нүүр хуудасны толгойн доор, НЭГ мөрөнд)
+// Өгөгдөл: серверийн duty-schedule.json (/api/duty-schedule), байхгүй бол энэ хөтчийн хуулбар.
+// Нэг мөрөнд: Өнөөдөр (1-р ээлж | 2-р ээлж) + Маргааш / дараагийн ажлын өдөр (1-р ээлж | 2-р ээлж)
 // =====================================================================
 const DUTY_KEY = 'dutyScheduleV1';
 const DUTY_WEEKDAYS = ['Ням', 'Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба'];
-const DUTY_FLIP_MS = 6000;
+const DUTY_REFRESH_MS = 30000;
 let dutySig = '';
-let dutyFlipped = false;
 let dutyRemoteRaw = '';   // серверээс авсан жижүүрийн хуваарь (JSON текст)
 let dutyDebug = '';       // оношилгооны мэдээлэл (хаягийн ард ?debug=1 нэмэхэд харагдана)
 const DUTY_DEBUG = /(^|[?&])debug(=|&|$)/.test(location.search);
-const DUTY_REFRESH_MS = 30000;
 
 async function dutyFetchRemote() {
-  // /api/duty-schedule : серверийн төсөл доторх duty-schedule.json (teachers.json-ий адил)
   try {
     const r = await fetch('/api/duty-schedule', { cache: 'no-store' });
     if (!r.ok) { dutyDebug = `GET /api/duty-schedule → HTTP ${r.status} (сервер шинэ биш эсвэл endpoint алга)`; return; }
@@ -1584,12 +1581,13 @@ function dutyLoadData() {
   if (!raw) {
     try { raw = localStorage.getItem(DUTY_KEY) || ''; } catch (e) { /* хандах эрхгүй */ }
   }
-  if (!raw) return { raw: '', byShift: { 1: {}, 2: {} } };
   const byShift = { 1: {}, 2: {} };
+  let off = new Set();
+  if (!raw) return { raw: '', byShift, off };
   try {
     const st = JSON.parse(raw);
     const order = Array.isArray(st.teachers) ? st.teachers : [];
-    const off = new Set(Array.isArray(st.off) ? st.off : []);
+    off = new Set(Array.isArray(st.off) ? st.off : []);
     Object.keys(st.checks || {}).forEach(k => {
       if (!st.checks[k]) return;
       const [date, name, shift] = k.split('|');
@@ -1601,21 +1599,23 @@ function dutyLoadData() {
       byShift[s][d].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     }));
   } catch (e) { console.warn('Жижүүрийн хуваарь уншиж чадсангүй:', e); }
-  return { raw, byShift };
+  return { raw, byShift, off };
 }
 
-function dutyNextEntry(byShift, shift, today) {
-  const dates = Object.keys(byShift[shift]).filter(d => d > today).sort();
-  return dates.length ? { date: dates[0], names: byShift[shift][dates[0]] } : null;
-}
-
-function dutyShortDate(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return `${m}/${d} ${DUTY_WEEKDAYS[new Date(y, m - 1, d).getDay()]}`;
+// Маргааш (амралтын өдөр бол дараагийн ажлын өдөр)
+function dutyNextWorkday(now, off) {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (let i = 0; i < 14; i++) {
+    d.setDate(d.getDate() + 1);
+    const wd = d.getDay();
+    if (wd === 0 || wd === 6 || off.has(dutyFmt(d))) continue;
+    return new Date(d);
+  }
+  return null;
 }
 
 function dutyPeopleHtml(names) {
-  if (!names || !names.length) return '<span class="duty-none">— жижүүргүй —</span>';
+  if (!names || !names.length) return '<span class="duty-none">—</span>';
   const byNorm = new Map();
   (teachersData || []).forEach(t => { if (t && t.name) byNorm.set(dutyNorm(t.name), t); });
   return names.map(n => {
@@ -1625,6 +1625,22 @@ function dutyPeopleHtml(names) {
   }).join('');
 }
 
+function dutyDayHtml(label, date, data, activeShift) {
+  if (!date) return '';
+  const key = dutyFmt(date);
+  const sub = `${date.getMonth() + 1}/${date.getDate()} ${DUTY_WEEKDAYS[date.getDay()]}`;
+  const shifts = [1, 2].map(s => `
+      <div class="duty-shift shift-${s}${activeShift === s ? ' is-active' : ''}">
+        <span class="duty-shift-tag">${s}-р ээлж</span>
+        <span class="duty-people">${dutyPeopleHtml(data.byShift[s][key])}</span>
+      </div>`).join('');
+  return `
+    <div class="duty-day">
+      <div class="duty-day-label"><b>${escapeHtml(label)}</b><small>${escapeHtml(sub)}</small></div>
+      ${shifts}
+    </div>`;
+}
+
 function updateDutyStrip(now) {
   const box = document.getElementById('dutyStrip');
   if (!box) return;
@@ -1632,7 +1648,7 @@ function updateDutyStrip(now) {
   const data = dutyLoadData();
   const today = dutyFmt(now);
   const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
-  const activeShift = (now.getHours() * 60 + now.getMinutes()) < (13 * 60 + 30) ? 1 : 2;
+  const activeShift = isWeekday ? ((now.getHours() * 60 + now.getMinutes()) < (13 * 60 + 30) ? 1 : 2) : 0;
 
   const sig = [today, activeShift, data.raw, roomsVersion, (teachersData || []).length, DUTY_DEBUG ? dutyDebug : ''].join('|');
   if (sig === dutySig) return;
@@ -1653,53 +1669,31 @@ function updateDutyStrip(now) {
   }
   box.style.display = 'flex';
 
-  const card = shift => {
-    const todayNames = data.byShift[shift][today] || [];
-    const next = dutyNextEntry(data.byShift, shift, today);
-    const isActive = isWeekday && shift === activeShift;
-    return `
-      <div class="duty-card shift-${shift}${isActive ? ' is-active' : ''}${dutyFlipped ? ' flipped' : ''}" title="Дарвал дараагийн жижүүр рүү эргэнэ">
-        <div class="duty-card-inner">
-          <div class="duty-face duty-front">
-            <div class="duty-label"><b>${shift}-р ээлж</b><small>Өнөөдөр</small></div>
-            <div class="duty-people">${dutyPeopleHtml(todayNames)}</div>
-          </div>
-          <div class="duty-face duty-back">
-            <div class="duty-label"><b>${shift}-р ээлж</b><small>Дараагийн · ${next ? escapeHtml(dutyShortDate(next.date)) : '—'}</small></div>
-            <div class="duty-people">${dutyPeopleHtml(next ? next.names : [])}</div>
-          </div>
-        </div>
-      </div>`;
-  };
+  const next = dutyNextWorkday(now, data.off);
+  let nextLabel = 'Дараагийн өдөр';
+  if (next) {
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    nextLabel = dutyFmt(next) === dutyFmt(tomorrow) ? 'Маргааш' : `${DUTY_WEEKDAYS[next.getDay()]} гараг`;
+  }
 
-  const title = `${now.getMonth() + 1}-р сарын ${now.getDate()} · ${DUTY_WEEKDAYS[now.getDay()]}`;
   box.innerHTML = `
-    <div class="duty-strip-title">🧑‍🏫 Жижүүр багш<small>${escapeHtml(title)}</small></div>
-    <div class="duty-cards">${card(1)}${card(2)}</div>${debugHtml}`;
+    <div class="duty-strip-title">🧑‍🏫 Жижүүр багш</div>
+    ${dutyDayHtml('Өнөөдөр', new Date(now.getFullYear(), now.getMonth(), now.getDate()), data, activeShift)}
+    <div class="duty-sep"></div>
+    ${dutyDayHtml(nextLabel, next, data, 0)}
+    ${debugHtml}`;
 }
 
 (function initDutyStrip() {
   const box = document.getElementById('dutyStrip');
   if (!box) return;
 
-  const flipAll = () => {
-    document.querySelectorAll('#dutyStrip .duty-card').forEach(c => c.classList.toggle('flipped', dutyFlipped));
-  };
-
-  // Автоматаар эргэнэ (урд ↔ ар)
-  setInterval(() => { dutyFlipped = !dutyFlipped; flipAll(); }, DUTY_FLIP_MS);
-
-  // Дарвал гараар эргүүлнэ
-  box.addEventListener('click', e => {
-    if (!e.target.closest('.duty-card')) return;
-    dutyFlipped = !dutyFlipped;
-    flipAll();
-  });
+  // Серверийн өгөгдлийг үе үе шинэчилнэ
+  setInterval(dutyFetchRemote, DUTY_REFRESH_MS);
 
   // Админ өөр табд өөрчлөлт хийвэл шууд шинэчилнэ
   window.addEventListener('storage', e => { if (e.key === DUTY_KEY) dutySig = ''; });
 
   dutyFetchRemote().then(() => updateDutyStrip(new Date()));
-  setInterval(dutyFetchRemote, DUTY_REFRESH_MS);
   updateDutyStrip(new Date());
 })();
