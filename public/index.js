@@ -1547,18 +1547,26 @@ const DUTY_FLIP_MS = 6000;
 let dutySig = '';
 let dutyFlipped = false;
 let dutyRemoteRaw = '';   // серверээс авсан жижүүрийн хуваарь (JSON текст)
+let dutyDebug = '';       // оношилгооны мэдээлэл (хаягийн ард ?debug=1 нэмэхэд харагдана)
+const DUTY_DEBUG = /(^|[?&])debug(=|&|$)/.test(location.search);
 const DUTY_REFRESH_MS = 30000;
 
 async function dutyFetchRemote() {
   // /api/duty-schedule : серверийн төсөл доторх duty-schedule.json (teachers.json-ий адил)
   try {
     const r = await fetch('/api/duty-schedule', { cache: 'no-store' });
-    if (!r.ok) return;
+    if (!r.ok) { dutyDebug = `GET /api/duty-schedule → HTTP ${r.status} (сервер шинэ биш эсвэл endpoint алга)`; return; }
     const j = await r.json();
-    if (!j || !Array.isArray(j.teachers) || !j.teachers.length) return;
+    if (!j || !Array.isArray(j.teachers) || !j.teachers.length) {
+      dutyDebug = `Сервер хариу өгсөн боловч багшгүй байна: ${JSON.stringify(j).slice(0, 80)} (duty-schedule.json серверт алга эсвэл хоосон)`;
+      return;
+    }
+    dutyDebug = `Серверээс авлаа: ${j.teachers.length} багш, ${Object.keys(j.checks || {}).length} тэмдэглэгээ`;
     const raw = JSON.stringify(j);
     if (raw !== dutyRemoteRaw) { dutyRemoteRaw = raw; dutySig = ''; }
-  } catch (e) { /* сервер хариугүй бол өмнөх өгөгдлөөр үргэлжилнэ */ }
+  } catch (e) {
+    dutyDebug = `Алдаа: ${e && e.message ? e.message : e}`;
+  }
 }
 
 function dutyFmt(d) {
@@ -1626,11 +1634,23 @@ function updateDutyStrip(now) {
   const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
   const activeShift = (now.getHours() * 60 + now.getMinutes()) < (13 * 60 + 30) ? 1 : 2;
 
-  const sig = [today, activeShift, data.raw, roomsVersion, (teachersData || []).length].join('|');
+  const sig = [today, activeShift, data.raw, roomsVersion, (teachersData || []).length, DUTY_DEBUG ? dutyDebug : ''].join('|');
   if (sig === dutySig) return;
   dutySig = sig;
 
-  if (!data.raw) { box.style.display = 'none'; return; }
+  const debugHtml = DUTY_DEBUG
+    ? `<div class="duty-debug">🛠 ${escapeHtml(dutyDebug || 'сервертэй холбогдож байна...')} · эх сурвалж: ${dutyRemoteRaw ? 'сервер' : (data.raw ? 'энэ хөтчийн хуулбар' : 'алга')}</div>`
+    : '';
+
+  if (!data.raw) {
+    if (DUTY_DEBUG) {
+      box.style.display = 'flex';
+      box.innerHTML = '<div class="duty-strip-title">🧑‍🏫 Жижүүр багш</div>' + debugHtml;
+    } else {
+      box.style.display = 'none';
+    }
+    return;
+  }
   box.style.display = 'flex';
 
   const card = shift => {
@@ -1655,7 +1675,7 @@ function updateDutyStrip(now) {
   const title = `${now.getMonth() + 1}-р сарын ${now.getDate()} · ${DUTY_WEEKDAYS[now.getDay()]}`;
   box.innerHTML = `
     <div class="duty-strip-title">🧑‍🏫 Жижүүр багш<small>${escapeHtml(title)}</small></div>
-    <div class="duty-cards">${card(1)}${card(2)}</div>`;
+    <div class="duty-cards">${card(1)}${card(2)}</div>${debugHtml}`;
 }
 
 (function initDutyStrip() {

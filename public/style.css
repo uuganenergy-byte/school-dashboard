@@ -703,3 +703,6 @@ input.duty-chk:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px;
 .duty-person img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #334155; }
 .duty-pname { font-size: 12px; font-weight: bold; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .duty-none { font-size: 11px; color: #64748b; }
+
+/* Оношилгоо: index.html?debug=1 */
+.duty-debug { font-size: 11px; color: #fde68a; background: #422006; border: 1px dashed #a16207; border-radius: 6px; padding: 4px 8px; }
