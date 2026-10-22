@@ -30,6 +30,7 @@ const ROOMS_FILE = path.join(__dirname, 'rooms.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 const TEACHERS_FILE = path.join(__dirname, 'teachers.json');
 const MASTER_SCHEDULE_FILE = path.join(__dirname, 'master-schedule.json');
+const DUTY_FILE = path.join(__dirname, 'duty-schedule.json');
 
 // 🛠️ Туслах функцүүд (JSON унших, бичих)
 // ӨӨРЧЛӨЛТ: defaultData параметрийг нэмж, файл үүсгэхдээ Array эсвэл Object байхыг ялгадаг болгов
@@ -859,6 +860,52 @@ app.post('/api/master-schedule', requireAuth, (req, res) => {
 
   if (writeJson(MASTER_SCHEDULE_FILE, clean)) {
     res.json({ success: true, count: clean.length });
+  } else {
+    res.status(500).json({ success: false, message: 'Файлд бичихэд алдаа гарлаа' });
+  }
+});
+
+// -------------------------------------------------------------
+// 🧑‍🏫 ЖИЖҮҮР БАГШИЙН ХУВААРЬ (duty-schedule.json)
+// GET  нийтэд нээлттэй (нүүр хуудас / touchscreen уншина)
+// POST админ нэвтэрсэн үед л (хуваарийг бүхэлд нь орлуулж хадгална)
+// Файл нь teachers.json-ийн хажууд (төслийн үндсэн хавтаст) байрлана: git-д оруулбал deploy хийсэн веб шууд ашиглана.
+// Бүтэц: { teachers: ["Нэр", ...], checks: { "YYYY-MM-DD|Нэр|1": true }, off: ["YYYY-MM-DD"], updatedAt: ms }
+//   shift 1 = Ү/ө (1-р ээлж), shift 2 = Ү/х (2-р ээлж)
+// -------------------------------------------------------------
+const DUTY_CHECK_KEY = /^\d{4}-\d{2}-\d{2}\|[^|]{1,80}\|[12]$/;
+const DUTY_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function cleanDutySchedule(b) {
+  b = (b && typeof b === 'object') ? b : {};
+  const teachers = [];
+  (Array.isArray(b.teachers) ? b.teachers : []).forEach(n => {
+    const name = String(n == null ? '' : n).replace(/\s+/g, ' ').trim();
+    if (name && name.length <= 80 && !name.includes('|') && !teachers.includes(name)) teachers.push(name);
+  });
+
+  const checks = {};
+  const src = (b.checks && typeof b.checks === 'object') ? b.checks : {};
+  Object.keys(src).slice(0, 100000).forEach(k => {
+    if (src[k] && DUTY_CHECK_KEY.test(k)) checks[k] = true;
+  });
+
+  const off = (Array.isArray(b.off) ? b.off : []).filter(d => DUTY_DATE.test(String(d))).slice(0, 1000);
+  const updatedAt = Number(b.updatedAt) > 0 ? Number(b.updatedAt) : Date.now();
+  return { teachers: teachers.slice(0, 300), checks, off, updatedAt };
+}
+
+app.get('/api/duty-schedule', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  // Файл байхгүй үед шинээр үүсгэхгүй (readJson үүсгэдэг тул ашиглахгүй), зүгээр л хоосон объект буцаана
+  if (!fs.existsSync(DUTY_FILE)) return res.json({});
+  res.json(readJson(DUTY_FILE, {}));
+});
+
+app.post('/api/duty-schedule', requireAuth, (req, res) => {
+  const clean = cleanDutySchedule(req.body);
+  if (writeJson(DUTY_FILE, clean)) {
+    res.json({ success: true, updatedAt: clean.updatedAt });
   } else {
     res.status(500).json({ success: false, message: 'Файлд бичихэд алдаа гарлаа' });
   }
