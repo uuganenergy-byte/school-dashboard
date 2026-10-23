@@ -472,6 +472,32 @@ function isRoom111Owner(teacher) {
   return ROOM_111_OWNERS.some(k => n.includes(k));
 }
 
+// Кабинетийг дугаараар нь олно ("207" эсвэл "Д207" гэж бүртгэгдсэн байж болно)
+function findRoomByNumber(num) {
+  const want = String(num).toUpperCase();
+  return roomsData.find(r => {
+    const n = String(r.roomNumber == null ? '' : r.roomNumber).replace(/\s+/g, '').toUpperCase();
+    return n === want || n === 'Д' + want || n === 'D' + want;
+  }) || null;
+}
+
+// Тухайн цагт өөр багштай ижил кабинет (эсвэл byClass үед ижил анги) давхцаж байгаа эсэх
+function teacherHasConflict(teacher, lesson, targetRooms, curDay, curTimeStr, byClass) {
+  const myTokens = svClassTokens(lesson);
+  const myRooms = targetRooms.map(tr => String(tr.room.roomNumber));
+  return teachersData.some(other => {
+    if (!other || other === teacher || !other.name) return false;
+    const oInfo = getCurrentLessonInfo(other.schedule, curDay, curTimeStr);
+    if (!oInfo) return false;
+    const oRooms = findRoomsForLesson(oInfo.text).map(m => String(m.room.roomNumber));
+    if (myRooms.some(r => oRooms.includes(r))) return true;
+    return !!byClass && svClassTokens(oInfo.text).some(tok => myTokens.includes(tok));
+  });
+}
+
+// Бямбадорж багш өөр хүнтэй кабинет (эсвэл анги) давхцвал 2D зураг дээр 207-д гарна
+const BYAMBADORJ_CONFLICT_BY_CLASS = true;
+
 function updateLiveMapMarkers(now) {
   const floor1Container = document.getElementById('floor1Markers');
   const floor2Container = document.getElementById('floor2Markers');
@@ -515,48 +541,17 @@ function updateLiveMapMarkers(now) {
     let movedTo111 = false;
 
     if (isByambadorj) {
-      const byambadorjTokens = svClassTokens(lesson);
-      let hasConflict = false;
-      teachersData.forEach(otherTeacher => {
-        if (!otherTeacher || otherTeacher === teacher || !otherTeacher.name) return;
-        const otherLessonInfo = getCurrentLessonInfo(otherTeacher.schedule, curDay, curTimeStr);
-        if (otherLessonInfo && otherLessonInfo.period === lessonInfo.period) {
-          const otherTokens = svClassTokens(otherLessonInfo.text);
-          if (byambadorjTokens.some(tok => otherTokens.includes(tok))) {
-            hasConflict = true;
-          }
-        }
-      });
-      if (hasConflict) {
-        const room207 = roomsData.find(r => String(r.roomNumber) === '207');
-        if (room207) {
+      if (teacherHasConflict(teacher, lesson, targetRooms, curDay, curTimeStr, BYAMBADORJ_CONFLICT_BY_CLASS)) {
+        const room207 = findRoomByNumber('207');
+        if (room207 && room207.coords && typeof room207.coords.x === 'number') {
           targetRooms = [{ room: room207, group: '' }];
         }
       }
     }
 
     if (isRoom111Teacher) {
-      const myTokens = svClassTokens(lesson);
-      const myRooms = targetRooms.map(tr => String(tr.room.roomNumber));
-      let hasConflict = false;
-
-      teachersData.forEach(other => {
-        if (hasConflict) return;
-        if (!other || other === teacher || !other.name) return;
-        const oInfo = getCurrentLessonInfo(other.schedule, curDay, curTimeStr);
-        if (!oInfo) return;
-
-        const oRooms = findRoomsForLesson(oInfo.text).map(m => String(m.room.roomNumber));
-        const sameRoom = myRooms.some(r => oRooms.includes(r));
-        const sameClass = ROOM_111_CONFLICT_BY_CLASS &&
-          svClassTokens(oInfo.text).some(tok => myTokens.includes(tok));
-
-        if (sameRoom || sameClass) hasConflict = true;
-      });
-
-      if (hasConflict) {
-        const room111 = roomsData.find(r =>
-          String(r.roomNumber) === '111' || String(r.roomNumber).toUpperCase() === 'Д111');
+      if (teacherHasConflict(teacher, lesson, targetRooms, curDay, curTimeStr, ROOM_111_CONFLICT_BY_CLASS)) {
+        const room111 = findRoomByNumber('111');
         if (room111 && room111.coords && typeof room111.coords.x === 'number') {
           targetRooms = [{ room: room111, group: '' }];
           movedTo111 = true;
