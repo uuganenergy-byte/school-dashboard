@@ -805,6 +805,7 @@ let svState = {
   className: '',
   day: '',
   shift: 1,
+  dutyMonth: '',   // жижүүрийн календарь: 'YYYY-MM'
   filter: { teacher: '', class: '', day: '', weekly: '' }
 };
 let svIndex = null;
@@ -1100,6 +1101,7 @@ function renderScheduleView() {
   else if (svState.sub === 'day') renderSvDayShell(content);
   else if (svState.sub === 'now') renderSvNowShell(content);
   else if (svState.sub === 'weekly') renderSvWeeklyShell(content); // <-- Энэ мөрийг нэмнэ
+  else if (svState.sub === 'duty') renderSvDutyShell(content);
 }
 
 function svRefreshAll() {
@@ -1108,6 +1110,7 @@ function svRefreshAll() {
   else if (svState.sub === 'class') { renderSvClassChips(); renderSvClassDetail(); }
   else if (svState.sub === 'day') { renderSvDayDetail(); }
   else if (svState.sub === 'weekly') { renderSvWeeklyDetail(); }
+  else if (svState.sub === 'duty') { renderSvDutyCal(); }
   else { renderSvNow(); }
 }
 
@@ -1394,6 +1397,8 @@ function initScheduleView() {
     } else if (action === 'pick-shift') {
       svState.shift = Number(el.dataset.shift) === 2 ? 2 : 1;
       renderScheduleView();
+    } else if (action === 'duty-nav') {
+      svDutyNav(Number(el.dataset.dir));
     } else if (action === 'open-teacher') {
       svState.teacherId = el.dataset.id;
       svState.filter.teacher = '';
@@ -1555,7 +1560,10 @@ async function dutyFetchRemote() {
     }
     dutyDebug = `Серверээс авлаа: ${j.teachers.length} багш, ${Object.keys(j.checks || {}).length} тэмдэглэгээ`;
     const raw = JSON.stringify(j);
-    if (raw !== dutyRemoteRaw) { dutyRemoteRaw = raw; dutySig = ''; }
+    if (raw !== dutyRemoteRaw) {
+      dutyRemoteRaw = raw; dutySig = '';
+      if (typeof svDutyRefresh === 'function') svDutyRefresh();
+    }
   } catch (e) {
     dutyDebug = `Алдаа: ${e && e.message ? e.message : e}`;
   }
@@ -1692,3 +1700,158 @@ function updateDutyStrip(now) {
   dutyFetchRemote().then(() => updateDutyStrip(new Date()));
   updateDutyStrip(new Date());
 })();
+
+// =====================================================================
+// 📅 ЖИЖҮҮР БАГШИЙН ХУВААРЬ — Google Calendar маягийн сарын календарь
+// (Хуваарь харах → "Жижүүр багшийн хуваарь")
+// Өдөр бүр дээр тухайн өдрийн жижүүр багшийн зураг, нэр, утас гарна.
+// Мөн Монгол Улсын баяр, тэмдэглэлт өдрүүд (доорх жагсаалтаас) харагдана.
+// Гадны сан ашиглаагүй (CDN-ээс хамаарахгүй) тул kiosk дээр найдвартай ажиллана.
+// =====================================================================
+const DCAL_MONTH_WEEKDAYS = ['Даваа', 'Мягмар', 'Лхагва', 'Пүрэв', 'Баасан', 'Бямба', 'Ням'];
+
+// --- Жил бүр ижил өдөр тохиодог (сар-өдөр) ---
+// type: 'holiday' = бүх нийтийн амралтын өдөр (хар ногоон), 'special' = тэмдэглэлт өдөр (цайвар ногоон)
+const DCAL_FIXED = [
+  { md: '01-01', title: 'Шинэ жил', type: 'holiday' },
+  { md: '01-13', title: 'Үндсэн хуулийн өдөр', type: 'special' },
+  { md: '03-01', title: 'Эх орончдын өдөр', type: 'special' },
+  { md: '03-08', title: 'Олон улсын эмэгтэйчүүдийн өдөр', type: 'holiday' },
+  { md: '03-18', title: 'Монгол цэргийн өдөр', type: 'special' },
+  { md: '04-07', title: 'Эрүүл мэндийн өдөр', type: 'special' },
+  { md: '06-01', title: 'Хүүхдийн баяр', type: 'holiday' },
+  { md: '07-10', title: 'Төрийн далбааны өдөр', type: 'special' },
+  { md: '07-11', title: 'Наадам', type: 'holiday' },
+  { md: '07-12', title: 'Наадам', type: 'holiday' },
+  { md: '07-13', title: 'Наадам', type: 'holiday' },
+  { md: '08-25', title: 'Залуучуудын өдөр', type: 'special' },
+  { md: '09-01', title: 'Мэдлэгийн өдөр', type: 'special' },
+  { md: '09-10', title: 'Улс төрийн хэлмэгдэгсдийн дурсгалын өдөр', type: 'special' },
+  { md: '10-01', title: 'Ахмадын өдөр', type: 'special' },
+  { md: '10-29', title: 'Нийслэл хотын өдөр', type: 'special' },
+  { md: '11-26', title: 'Бүгд Найрамдах Улс тунхагласан өдөр', type: 'holiday' },
+  { md: '12-10', title: 'Ардчилал, хүний эрхийн өдөр', type: 'special' },
+  { md: '12-29', title: 'Үндэсний эрх чөлөөний баярын өдөр', type: 'holiday' }
+];
+
+// --- Сарын тооллоор (жил бүр өөр) тохиодог өдрүүд: ЖИЛ БҮРИЙН ӨДРИЙГ ЭНД НЭМНЭ ---
+// Цагаан сар, Чингис хааны өдөр, Бурхан багшийн Дүйчин өдөр зэрэг. { from, to (заавал биш), title, type }
+const DCAL_LUNAR = [
+  { from: '2026-02-17', title: 'Цагаан сарын битүүн', type: 'special' },
+  { from: '2026-02-18', to: '2026-02-20', title: 'Цагаан сар', type: 'holiday' },
+  { from: '2026-05-31', title: 'Бурхан багшийн Дүйчин өдөр', type: 'special' },
+  { from: '2026-11-10', title: 'Их эзэн Чингис хааны өдөр', type: 'holiday' }
+  // 2027 оны Цагаан сар, Чингис хааны өдрийг батлагдсан даруйд энд нэмнэ. Жишээ:
+  // { from: '2027-02-07', to: '2027-02-09', title: 'Цагаан сар', type: 'holiday' },
+];
+
+// --- Сургуулийн өөрийн арга хэмжээ (эцэг эхийн хурал, шалгалт гэх мэт) ---
+// type: 'event' (шар). Жишээ: { from: '2026-11-05', title: 'Эцэг эхийн хурал', type: 'event' }
+const DCAL_CUSTOM = [];
+
+function dcalEventsFor(key) {
+  const out = [];
+  const md = key.slice(5);
+  DCAL_FIXED.forEach(e => { if (e.md === md) out.push(e); });
+  DCAL_LUNAR.concat(DCAL_CUSTOM).forEach(e => {
+    if (key >= e.from && key <= (e.to || e.from)) out.push(e);
+  });
+  // амралтын өдөр эхэнд, дараа нь тэмдэглэлт өдөр, сургуулийн арга хэмжээ
+  const rank = { holiday: 0, special: 1, event: 2 };
+  return out.sort((a, b) => (rank[a.type] ?? 3) - (rank[b.type] ?? 3));
+}
+
+function svDutyMonthKey() {
+  if (!/^\d{4}-\d{2}$/.test(svState.dutyMonth || '')) {
+    const n = new Date();
+    svState.dutyMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }
+  return svState.dutyMonth;
+}
+
+function svDutyNav(dir) {
+  const [y, m] = svDutyMonthKey().split('-').map(Number);
+  const d = dir === 0 ? new Date() : new Date(y, m - 1 + dir, 1);
+  svState.dutyMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  renderSvDutyCal();
+}
+
+function svDutyRefresh() {
+  if (typeof mainView !== 'undefined' && mainView === 'schedule' && svState.sub === 'duty') renderSvDutyCal();
+}
+
+function renderSvDutyShell(box) {
+  box.innerHTML = `
+    <div class="sv-title">🧑‍🏫 Жижүүр багшийн хуваарь</div>
+    <div class="dcal-toolbar">
+      <button type="button" class="dcal-btn" data-action="duty-nav" data-dir="0">Өнөөдөр</button>
+      <button type="button" class="dcal-nav" data-action="duty-nav" data-dir="-1" title="Өмнөх сар">‹</button>
+      <button type="button" class="dcal-nav" data-action="duty-nav" data-dir="1" title="Дараагийн сар">›</button>
+      <div id="dcalTitle" class="dcal-title"></div>
+      <div class="dcal-legend">
+        <span class="dcal-dot shift-1"></span>1-р ээлж (Ү/ө)
+        <span class="dcal-dot shift-2"></span>2-р ээлж (Ү/х)
+        <span class="dcal-dot ev-holiday"></span>Баярын өдөр
+        <span class="dcal-dot ev-special"></span>Тэмдэглэлт өдөр
+      </div>
+    </div>
+    <div id="svDutyCal"></div>`;
+  renderSvDutyCal();
+}
+
+function svDutyPill(name, shift, byNorm) {
+  const t = byNorm.get(dutyNorm(name));
+  const src = (t && t.image) || AVATAR_FALLBACK;
+  const phone = t && t.phone ? String(t.phone) : '';
+  const open = t ? ` data-action="open-teacher" data-id="${escapeHtml(t.id)}"` : '';
+  return `<div class="dcal-pill shift-${shift}"${open} title="${escapeHtml(name)} · ${shift}-р ээлж${phone ? ' · ' + escapeHtml(phone) : ''}">
+      <img src="${escapeHtml(src)}" alt="" onerror="this.onerror=null;this.src=AVATAR_FALLBACK">
+      <span class="dcal-ptxt"><b>${escapeHtml(name)}</b>${phone ? `<small>📱 ${escapeHtml(phone)}</small>` : ''}</span>
+    </div>`;
+}
+
+function renderSvDutyCal() {
+  const box = document.getElementById('svDutyCal');
+  if (!box) return;
+
+  const [y, m] = svDutyMonthKey().split('-').map(Number);
+  const titleEl = document.getElementById('dcalTitle');
+  if (titleEl) titleEl.textContent = `${y} оны ${m}-р сар`;
+
+  const data = dutyLoadData();
+  const byNorm = new Map();
+  (teachersData || []).forEach(t => { if (t && t.name) byNorm.set(dutyNorm(t.name), t); });
+
+  const first = new Date(y, m - 1, 1);
+  const last = new Date(y, m, 0);
+  const lead = (first.getDay() + 6) % 7;                    // Даваа гаригаас эхэлнэ
+  const total = Math.ceil((lead + last.getDate()) / 7) * 7;
+  const todayKey = dutyFmt(new Date());
+
+  const head = DCAL_MONTH_WEEKDAYS.map(d => `<div class="dcal-wd">${d}</div>`).join('');
+  let cells = '';
+  for (let i = 0; i < total; i++) {
+    const d = new Date(y, m - 1, 1 - lead + i);
+    const key = dutyFmt(d);
+    const inMonth = d.getMonth() === m - 1;
+    const wd = (d.getDay() + 6) % 7;                         // 0..6 (Да..Ня)
+    const isToday = key === todayKey;
+    const label = d.getDate() === 1 ? `${d.getMonth() + 1}-р сарын 1` : String(d.getDate());
+
+    const evs = dcalEventsFor(key);
+    const evHtml = evs.map(e =>
+      `<div class="dcal-ev ev-${e.type}" title="${escapeHtml(e.title)}">${escapeHtml(e.title)}</div>`).join('');
+    const pills = [1, 2].map(s =>
+      (data.byShift[s][key] || []).map(n => svDutyPill(n, s, byNorm)).join('')).join('');
+    const isHoliday = evs.some(e => e.type === 'holiday');
+
+    cells += `
+      <div class="dcal-cell${inMonth ? '' : ' other'}${wd >= 5 ? ' weekend' : ''}${isToday ? ' today' : ''}${isHoliday ? ' holiday' : ''}">
+        <div class="dcal-num"><span>${label}</span></div>
+        <div class="dcal-events">${evHtml}${pills}</div>
+      </div>`;
+  }
+
+  const empty = data.raw ? '' : '<div class="dcal-note">Жижүүрийн хуваарь одоогоор оруулаагүй байна.</div>';
+  box.innerHTML = `${empty}<div class="dcal"><div class="dcal-head">${head}</div><div class="dcal-grid">${cells}</div></div>`;
+}

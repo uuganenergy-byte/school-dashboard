@@ -697,3 +697,67 @@ input.duty-chk:focus-visible { outline: 2px solid #0284c7; outline-offset: -2px;
 
 /* Оношилгоо: index.html?debug=1 */
 .duty-debug { font-size: 11px; color: #fde68a; background: #422006; border: 1px dashed #a16207; border-radius: 6px; padding: 4px 8px; }
+
+
+/* ================= ЖИЖҮҮР БАГШИЙН ХУВААРЬ: GOOGLE CALENDAR МАЯГИЙН КАЛЕНДАРЬ ================= */
+.dcal-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.dcal-btn {
+  background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 18px;
+  padding: 7px 16px; font-size: 14px; font-weight: bold; cursor: pointer;
+}
+.dcal-btn:hover { border-color: #38bdf8; color: #38bdf8; }
+.dcal-nav {
+  width: 36px; height: 36px; border-radius: 50%; background: #0f172a; color: #e2e8f0;
+  border: 1px solid #475569; font-size: 22px; line-height: 1; cursor: pointer;
+}
+.dcal-nav:hover { border-color: #38bdf8; color: #38bdf8; }
+.dcal-title { font-size: 20px; font-weight: bold; color: #f8fafc; margin: 0 10px; }
+.dcal-legend { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12px; color: #cbd5e1; }
+.dcal-dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-left: 6px; }
+.dcal-dot:first-child { margin-left: 0; }
+.dcal-dot.shift-1 { background: #a8c7fa; }
+.dcal-dot.shift-2 { background: #d7aefb; }
+.dcal-dot.ev-holiday { background: #0b8043; }
+.dcal-dot.ev-special { background: #b7e1cd; }
+.dcal-note { background: #422006; border: 1px dashed #a16207; color: #fde68a; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 10px; }
+
+/* Календарь өөрөө: цагаан, нимгэн шугам (Google Calendar-тай адил) */
+.dcal { background: #fff; border: 1px solid #dadce0; border-radius: 10px; overflow: hidden; color: #3c4043; }
+.dcal-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid #dadce0; }
+.dcal-wd { text-align: center; font-size: 12px; font-weight: 500; color: #70757a; padding: 8px 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.dcal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.dcal-cell { min-height: 118px; border-right: 1px solid #dadce0; border-bottom: 1px solid #dadce0; padding: 4px 4px 6px; min-width: 0; }
+.dcal-cell:nth-child(7n) { border-right: none; }
+.dcal-cell.weekend { background: #f8f9fa; }
+.dcal-cell.other .dcal-num span { color: #9aa0a6; }
+.dcal-num { text-align: center; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.dcal-num span { display: inline-block; min-width: 26px; height: 26px; line-height: 26px; border-radius: 13px; padding: 0 6px; color: #3c4043; }
+.dcal-cell.today .dcal-num span { background: #0b57d0; color: #fff; }
+.dcal-cell.holiday .dcal-num span { color: #0b8043; font-weight: 700; }
+.dcal-cell.holiday.today .dcal-num span { color: #fff; }
+
+.dcal-events { display: flex; flex-direction: column; gap: 3px; }
+
+/* Баяр, тэмдэглэлт өдөр (Google Calendar-ийн "Holidays" шиг) */
+.dcal-ev { border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcal-ev.ev-holiday { background: #0b8043; color: #fff; }
+.dcal-ev.ev-special { background: #b7e1cd; color: #1e4d34; }
+.dcal-ev.ev-event { background: #fbe3a3; color: #5b4300; }
+
+.dcal-pill {
+  display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 3px 6px 3px 3px;
+  cursor: default; min-width: 0; color: #1f1f1f;
+}
+.dcal-pill[data-action] { cursor: pointer; }
+.dcal-pill.shift-1 { background: #d3e3fd; border-left: 3px solid #0b57d0; }
+.dcal-pill.shift-2 { background: #ecdcfd; border-left: 3px solid #8430ce; }
+.dcal-pill img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #e8eaed; }
+.dcal-ptxt { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.dcal-ptxt b { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcal-ptxt small { font-size: 10.5px; color: #444746; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 800px) {
+  .dcal-cell { min-height: 90px; }
+  .dcal-ptxt small { display: none; }
+  .dcal-legend { margin-left: 0; width: 100%; }
+}
