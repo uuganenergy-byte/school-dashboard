@@ -822,7 +822,9 @@ function showMainView(name) {
   const home = document.querySelector('.dashboard-grid');
   const view = document.getElementById('scheduleView');
   const phonesView = document.getElementById('phonesView');
+  const kherlenView = document.getElementById('kherlenView');
 
+  if (kherlenView) kherlenView.style.display = (name === 'kherlen') ? 'grid' : 'none';
   if (home) home.style.display = (name === 'home') ? '' : 'none';
   if (view) view.style.display = (name === 'schedule') ? 'grid' : 'none';
   if (phonesView) phonesView.style.display = (name === 'phones') ? 'block' : 'none';
@@ -834,8 +836,12 @@ function showMainView(name) {
   if (navHome) navHome.classList.toggle('active', name === 'home');
   if (navSch) navSch.classList.toggle('active', name === 'schedule');
   if (navPhones) navPhones.classList.toggle('active', name === 'phones');
+  const navKherlen = document.getElementById('navKherlen');
+  if (navKherlen) navKherlen.classList.toggle('active', name === 'kherlen');
 
-  if (name === 'phones') {
+  if (name === 'kherlen') {
+    setKherlenMap('k');
+  } else if (name === 'phones') {
     renderPhonesView();
   } else if (name === 'schedule') {
     renderScheduleView();
@@ -1855,3 +1861,28 @@ function renderSvDutyCal() {
   const empty = data.raw ? '' : '<div class="dcal-note">Жижүүрийн хуваарь одоогоор оруулаагүй байна.</div>';
   box.innerHTML = `${empty}<div class="dcal"><div class="dcal-head">${head}</div><div class="dcal-grid">${cells}</div></div>`;
 }
+
+
+// 📍 Хэрлэн сум — Google Maps дэд цэс (чингис хот)
+const KHERLEN_LAT = 47.3194554, KHERLEN_LNG = 110.6585068;
+const KHERLEN_MAPS_URL = 'https://www.google.com/maps/@47.3194554,110.6585068,2248m/data=!3m1!1e3!5m1!1e2?entry=ttu&g_ep=EgoyMDI2MTAyMC4wIKXMDSoASAFQAw%3D%3D';
+
+function setKherlenMap(type) {
+  if (type === 'open') {
+    window.open(KHERLEN_MAPS_URL, '_blank', 'noopener');
+    return;
+  }
+  const frame = document.getElementById('kherlenMap');
+  if (frame) {
+    frame.src = 'https://maps.google.com/maps?q=' + KHERLEN_LAT + ',' + KHERLEN_LNG +
+      '&z=15&t=' + (type === 'k' ? 'k' : 'm') + '&hl=mn&output=embed';
+  }
+  document.querySelectorAll('#kherlenView .sv-menu-btn[data-kmap]').forEach(b => {
+    if (b.dataset.kmap !== 'open') b.classList.toggle('active', b.dataset.kmap === type);
+  });
+}
+
+document.addEventListener('click', function (e) {
+  const b = e.target.closest('#kherlenView .sv-menu-btn[data-kmap]');
+  if (b) setKherlenMap(b.dataset.kmap);
+});

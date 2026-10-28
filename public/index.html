@@ -23,6 +23,7 @@
     <button type="button" class="nav-btn" id="navSchedule" onclick="showMainView('schedule')">📅 Хуваарь харах</button>
     <button type="button" class="nav-btn" id="navPhones" onclick="showMainView('phones')">📞 Утасны жагсаалт</button>
     <button type="button" class="nav-btn" id="navWeb" onclick="showMainView('web')">🌐 Веб хуудас</button>
+    <button type="button" class="nav-btn" id="navKherlen" onclick="showMainView('kherlen')">📍 Хэрлэн сум</button>
   </div>
   <div class="header-right">
     <div class="clock" id="clock">00:00:00</div>
@@ -147,6 +148,22 @@
   <section class="sv-content" id="svContent"></section>
 </div>
 
+
+<!-- ================================================ -->
+<!-- 📍 ХЭРЛЭН СУМ ЦЭС -->
+<!-- ================================================ -->
+<div id="kherlenView" class="schedule-view" style="display: none;">
+  <aside class="sv-sidebar">
+    <div class="sv-sidebar-title">📍 Хэрлэн сум</div>
+    <button type="button" class="sv-menu-btn active" data-kmap="k">🛰️ Хиймэл дагуулын зураг</button>
+    <button type="button" class="sv-menu-btn" data-kmap="m">🗺️ Газрын зураг</button>
+    <button type="button" class="sv-menu-btn" data-kmap="open">↗️ Google Maps дээр нээх</button>
+  </aside>
+  <section class="sv-content" style="padding:0; overflow:hidden;">
+    <iframe id="kherlenMap" style="width:100%; height:calc(100vh - 150px); min-height:480px; border:0; display:block;"
+      loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+  </section>
+</div>
 
 <!-- ================================================ -->
 <!-- 📞 УТАСНЫ ЖАГСААЛТ ЦЭС -->
