@@ -1638,7 +1638,7 @@ function dutyDayHtml(label, date, data, activeShift) {
         <span class="duty-people">${dutyPeopleHtml(data.byShift[s][key])}</span>
       </div>`).join('');
   return `
-    <div class="duty-day">
+    <div class="duty-daybox">
       <div class="duty-day-label"><b>${escapeHtml(label)}</b><small>${escapeHtml(sub)}</small></div>
       ${shifts}
     </div>`;
